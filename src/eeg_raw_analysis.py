@@ -2,6 +2,8 @@ import mne
 from mne.preprocessing import ICA
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from autoreject import get_rejection_threshold
+from pyprep import NoisyChannels
 
 from utils.eeg_preprocess import *
 from utils.file_mgt import *
@@ -84,61 +86,58 @@ def test_xdf_files_reading() -> bool:
     return len(failed) == 0
 
 
+# for e in mne.channels.get_builtin_montages():
+#     print(e)
+
 # assert test_xdf_files_reading()
 
 mne.set_config("MNE_BROWSER_BACKEND", "qt")
+mne.set_log_level("WARNING")
+
 paths = list()
 paths = get_random_xdf_file_paths(10)
 # paths.append(
 #     r"data\raw\NIRS-EEG\Patient ID 2 - U2 (UWS)\Session 2\Post Administration 2\sub-P001_ses-S001_task-Default_run-001_eeg.xdf"
 # )
 # paths.append(
-#     r"data\raw\NIRS-EEG\Patient ID 42 - U27 (UWS)\Session 2\Baseline\sub-P001_ses-S001_task-Default_run-001_eeg_old463.xdf"
+#     r"data\raw\NIRS-EEG\Patient ID 43 - U28 (MCS)\Session 1\Post Administration 1\sub-P001_ses-S001_task-Default_run-001_eeg_old470.xdf"
 # )
 
 for path in paths:
     print("\nNow working with file", path, "\n")
 
-    # ------ Part 1 : Raw + filter ----------------------------------------------------------------
+    # ------ Part 1 : Raw + Bad channel detection + Filter ----------------------------------------
 
-    raw = get_raw_from_xdf(path)
-    # raw.drop_channels("F10")
-    # raw.set_eeg_reference()
+    try:
+        raw = get_raw_from_xdf(path)
+    except Exception as e:
+        print(e)
+        continue
+
     raw.load_data()
+    raw.plot(title="Raw EEG", n_channels=len(raw.ch_names))
+    handler = NoisyChannels(raw)
+    handler.find_bad_by_deviation() # Detect channels with abnormally high or low overall amplitudes.
+    handler.find_bad_by_hfnoise() # Detect channels with abnormally high amounts of high-frequency noise.
+    # handler.find_bad_by_correlation() # Detect channels that sometimes don’t correlate with any other channels
+    print("\nBad channels found by pyprep :", handler.get_bads(), "\n")
+    raw.info["bads"] = handler.get_bads()
+    # raw.interpolate_bads(reset_bads=False) # BLOCKED by unknown electrode positions
+    raw = raw.set_eeg_reference(ref_channels='average')
     raw = filter_raw(raw)
-    raw.plot(n_channels=len(raw.ch_names), block=True)
+    raw.plot(title="EEG after bad channel detection + filtering", n_channels=len(raw.ch_names))
 
-    # ------ Part 2 : Epoched (split) + Artifact removal with ICA (manual selection) --------------
+    # ------ Part 2 : Epoched (split) + Autoreject to drop bad epochs -----------------------------
 
     epochs_baselined = epochs_from_raw(raw)
     epochs_baselined.load_data()
-    #epochs_baselined.plot(events=True)
-
+    epochs_baselined.plot(title="Epoched EEG", events=True)
     del raw
 
-    ica = ICA(max_iter="auto", random_state=2000)
-    ica.fit(epochs_baselined)
-    ica.plot_sources(epochs_baselined, show_scrollbars=False, block=True) # Set block to True to manually select the component to be removed
-    #ica.exclude = [0]  # Or select the component's index here
-    reconst_raw = epochs_baselined.copy()
-    ica.apply(reconst_raw)
-    # epochs_baselined.plot()
-    # reconst_raw.plot()
-    epochs_baselined = reconst_raw.copy()
-
-    del reconst_raw
-
-    from autoreject import get_rejection_threshold  # noqa
-
-    # We can use the `decim` parameter to only take every nth time slice.
-    # This speeds up the computation time. Note however that for low sampling
-    # rates and high decimation parameters, you might not detect "peaky artifacts"
-    # (with a fast timecourse) in your data. A low amount of decimation however is
-    # almost always beneficial at no decrease of accuracy.
     reject = get_rejection_threshold(epochs_baselined)
     print('The rejection dictionary is %s' % reject)
     epochs_baselined.drop_bad(reject=reject)
-    epochs_baselined.plot(block=True)
+    epochs_baselined.plot(title="Epoched EEG after epoch rejection", events=True, block=True)
 
     continue
 

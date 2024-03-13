@@ -89,9 +89,9 @@ def get_raw_from_xdf(xdf_file_path: str, ref_electrode: str = "") -> mne.io.Raw:
 
     # Set the reference montage
     if ref_electrode != "":
-        raw.set_eeg_reference(ref_channels=[ref_electrode], verbose=False)
+        raw = raw.set_eeg_reference(ref_channels=[ref_electrode], verbose=False)
     else:
-        raw.set_eeg_reference(verbose=False)  # Use the average montage
+        raw = raw.set_eeg_reference(verbose=False)  # Use the average montage
 
     # TODO : Set the correct montage to use the electrodes' location
 
