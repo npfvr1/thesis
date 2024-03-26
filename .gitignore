@@ -1,6 +1,7 @@
 data/
 requirements.txt
 failed_xdf_reading.txt
+profile.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

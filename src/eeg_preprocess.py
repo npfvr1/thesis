@@ -1,24 +1,20 @@
-import copy
 import logging
-import os
+import time
 
+import numpy as np
 import mne
 from mne import Annotations
 import pyxdf
-from mne.preprocessing import ICA
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from autoreject import get_rejection_threshold
 from pyprep import NoisyChannels
-import statsmodels.api as sm
-import numpy as np
-import pandas as pd
 
 from utils.file_mgt import *
 
 
-"""Loads and clean the EEG data.
-Features are extracted and saved in a separate file.
+"""Loads and clean EEG data from .xdf file.
+Clean data is saved as .fif file.
 """
 
 
@@ -80,7 +76,7 @@ def get_raw_from_xdf(xdf_file_path: str, ref_electrode: str = "") -> mne.io.Raw:
         assert e[0] in ["F", "C", "T", "P", "O"], "The channel names are unexpected."
     assert sfreq > 0.0, "The sampling frequency is not a positive number."
 
-    # Create the men.io.Raw object
+    # Create the mne.io.Raw object
     info = mne.create_info(channel_names, sfreq, ["eeg"] * eeg_channel_count)
     raw = mne.io.RawArray(data, info, verbose=False)
 
@@ -118,12 +114,11 @@ def get_raw_from_xdf(xdf_file_path: str, ref_electrode: str = "") -> mne.io.Raw:
     return raw
 
 
-def filter_raw(raw: mne.io.Raw) -> mne.io.Raw:
-    """Filters a mne.io.Raw object : bandpass filter between 1 and 70 Hz, and notch filter at 50 Hz and some harmonics."""
-    raw_copy = copy.deepcopy(raw)
-    raw_copy.filter(l_freq=1, h_freq=70, verbose=False)
-    raw_copy.notch_filter(np.arange(50, 250, 50), verbose=False)
-    return raw_copy
+def filter_raw(raw: mne.io.Raw) -> None:
+    """Filters a mne.io.Raw object : bandpass filter between 1 and 70 Hz, and notch filter at 50 Hz."""
+    raw.filter(l_freq=1, h_freq=70, verbose=False)
+    raw.notch_filter(50, verbose=False) # TODO : Remove this line if it turns out we can low pass at less than 50Hz
+    return
 
 
 def epochs_from_raw(raw: mne.io.Raw) -> mne.Epochs:
@@ -133,7 +128,7 @@ def epochs_from_raw(raw: mne.io.Raw) -> mne.Epochs:
     """
     events, events_id = mne.events_from_annotations(raw)
     return mne.Epochs(
-        raw, events, event_id=events_id, preload=True, tmin=0, tmax=25, baseline=None
+        raw, events, event_id=events_id, preload=True, tmin=-10, tmax=25, baseline=(None, 0)
     )
 
 
@@ -152,134 +147,88 @@ def add_brain_wave_types_lines_on_pyplot_figure():
 
 
 def main():
-    
-    seed = np.random.random()
-    logging.info("Random seed is {}".format(seed))
 
-    mne.set_config("MNE_BROWSER_BACKEND", "qt")
+    logging.basicConfig(force=True, format='%(levelname)s - %(name)s - %(message)s')
+    # mne.set_config("MNE_BROWSER_BACKEND", "qt")
     mne.set_log_level("WARNING")
 
     paths = list()
-    paths = get_random_xdf_file_paths(10, seed)
-    # paths = get_random_xdf_file_paths_one_session(seed)
+    paths = get_random_eeg_file_paths("xdf", 500)
+    # paths = get_random_eeg_file_paths_one_session("xdf")
+    # paths.append(r"data\raw\DRUG1\ID33\Baseline\sub-P001_ses-S001_task-Default_run-001_eeg_old387.xdf")
 
-    feature_set = {} # Key: Recording ID - Value: feature vector
+    stats = {"bad_channels":[], "bad_epochs":[]}
 
     for path in tqdm(paths):
 
-        logging.info("Now working with file {}".format(path))
-
-        # ------ Part 1 : Raw + Bad channel detection and handling + Filter ---------------------------
+        # ---- Raw ----
 
         try:
             raw = get_raw_from_xdf(path).load_data()
         except Exception as e:
-            print(e)
+            logging.error(e)
             continue
 
+        # ---- Bad channels ---- 
+
         handler = NoisyChannels(raw)
-        handler.find_bad_by_deviation()  # Detect channels with abnormally high or low overall amplitudes.
-        handler.find_bad_by_hfnoise()  # Detect channels with abnormally high amounts of high-frequency noise.
-        # handler.find_bad_by_correlation() # Detect channels that sometimes don’t correlate with any other channels
+        handler.find_bad_by_deviation()  # high/low overall amplitudes
+        handler.find_bad_by_hfnoise()  # high-frequency noise
         bad_channels = handler.get_bads()
         logging.info("Bad channels found by pyprep ({}) : {}".format(len(bad_channels), bad_channels))
+        stats["bad_channels"].append(len(bad_channels))
         raw.info["bads"] = bad_channels
-        if len(bad_channels) > 0 : raw = raw.interpolate_bads()
-        raw = raw.set_eeg_reference(ref_channels="average")
+        if len(bad_channels) > 0 :
+            raw.interpolate_bads()
+            raw = raw.set_eeg_reference(ref_channels="average")
 
-        raw = filter_raw(raw)
+        # TODO : Decide whether or not to focus only on some channels based on their position (drop the other ones)
 
-        # ------ Part 2 : Epoched (split) + Autoreject to drop bad epochs -----------------------------
+        # ---- Filtering ----
+
+        filter_raw(raw)
+
+        # ---- Epoch ----
 
         epochs = epochs_from_raw(raw).load_data() # TODO : consider the decim parameter to downsample and save memory
         del raw
 
-        reject = get_rejection_threshold(epochs, verbose=False) # look at AutoRejct.fit_transform for interpolation
-        logging.info("The rejection dictionary is {}".format(reject))
-        n = len(epochs.selection)
+        # ---- Bad epochs ----
+
+        # ar = autoreject.AutoReject(n_interpolate=[1, 2, 3, 4], n_jobs=1, verbose=False)
+        # ar.fit(epochs)
+        # epochs = ar.transform(epochs)
+        event_count = len(epochs.selection)
+        reject = get_rejection_threshold(epochs, verbose=False)
         epochs.drop_bad(reject=reject)
-        logging.info("{} epochs were dropped by Autoreject".format(n - len(epochs.selection)))
-        if set(epochs.picks).intersection([0, 1, 2]) == {}:
-            logging.warning("All audio epochs were dropped")
-        if set(epochs.picks).intersection([3, 4, 5, 6, 7]) == {}:
-            logging.warning("All moderate mental arithmetics epochs were dropped")
-        if set(epochs.picks).intersection([8, 9, 10, 11, 12]) == {}:
-            logging.warning("All hard mental arithmetics epochs were dropped")
+        logging.info("{} epoch(s) were dropped by Autoreject".format(event_count - len(epochs.selection)))
+        stats["bad_epochs"].append(event_count - len(epochs.selection))
+        if (
+            set(epochs.selection).intersection([0, 1, 2]) == set() or
+            set(epochs.selection).intersection([3, 4, 5, 6, 7]) == set() or
+            set(epochs.selection).intersection([8, 9, 10, 11, 12]) == set()
+        ):
+            logging.warning("All epochs for one or more event type were dropped. Skipping to next recording.")
+            continue
 
-        # ------ Part 3 : Evoked (averaged) -----------------------------------------------------------
+        # ---- Save as file ----
 
-        evoked_audio = epochs["Audio"].average()
-        evoked_audio.crop(tmin=0, tmax=10)
-        # evoked_audio.plot(window_title="Evoked Audio", show=False)
-        evoked_maths_1 = epochs["Mental arithmetics moderate"].average()
-        evoked_maths_1.crop(tmin=0, tmax=25)
-        # evoked_maths_1.plot(window_title="Evoked Mental Arithmetics Moderate", show=False)
-        evoked_maths_2 = epochs["Mental arithmetics hard"].average()
-        evoked_maths_2.crop(tmin=0, tmax=25)
-        # evoked_maths_2.plot(window_title="Evoked Mental Arithmetics Hard", show=False)
-        del epochs
+        file_name = "\\".join(str(path).split("\\")[:-1]) + "\\clean-epo.fif" # Same path, different file name
+        epochs.save(file_name, overwrite=True)
 
-        # ------ Part 4 : Feature extraction ----------------------------------------------------------
+    logging.info("Number of successful recordings: {}".format(len(stats["bad_channels"])))
 
-        # spectrum_audio = evoked_audio.compute_psd(fmax=60)
-        # fig = spectrum_audio.plot(average=True)
-        # add_brain_wave_types_lines_on_pyplot_figure()
-        # spectrum_maths_1 = evoked_maths_1.compute_psd(fmax=60)
-        # fig = spectrum_maths_1.plot(average=True)
-        # add_brain_wave_types_lines_on_pyplot_figure()
-        # spectrum_maths_2 = evoked_maths_2.compute_psd(fmax=60)
-        # fig = spectrum_maths_2.plot(average=True)
-        # add_brain_wave_types_lines_on_pyplot_figure()
-        # plt.show()
+    total = np.sum(np.array(stats["bad_channels"]))
+    average = np.mean(np.array(stats["bad_channels"]))
+    logging.info("Number of bad channels:\nTotal: {}\nAverage: {}".format(total, average))
 
-        features = []
-
-        # AR process coefficients
-        for channel_index in range(evoked_audio.data.shape[0]):
-            data = evoked_audio.data[channel_index]
-            ar_coefficients, _ = sm.regression.yule_walker(data, order=10, method="mle") # TODO : hyperparameter (AR model order)
-            features.extend(ar_coefficients[:5]) # TODO : hyperparameter (number of coefficients to keep)
-
-        feature_set[str(path)] = features
-    
-    df = pd.DataFrame.from_dict(feature_set, orient="index")
-    df.to_csv(os.path.join("data", "processed", "eeg_features.csv"))
+    total = np.sum(np.array(stats["bad_epochs"]))
+    average = np.mean(np.array(stats["bad_epochs"]))
+    logging.info("Number of bad epochs:\nTotal: {}\nAverage: {}".format(total, average))
 
 
 if __name__ == "__main__":
+    t = time.time()
     main()
-
-
-# # ------------------- ICA --------------------
-# ica = ICA(max_iter="auto", random_state=2000)#n_components=5,
-# ica.fit(raw)
-# explained_var_ratio = ica.get_explained_variance_ratio(raw)
-# for channel_type, ratio in explained_var_ratio.items():
-#     print(
-#         f"Fraction of {channel_type} variance explained by all components: " f"{ratio}"
-#     )
-# ica.plot_sources(raw, show_scrollbars=False)
-# # ica.plot_overlay(raw, exclude=[0], picks="eeg")
-# ica.exclude = [0]  # indices chosen based on various plots above
-# # ica.apply() changes the Raw object in-place, so let's make a copy first:
-# reconst_raw = raw.copy()
-# ica.apply(reconst_raw)
-# raw.plot()
-# reconst_raw.plot(block=True)
-
-# # ------------------- Frequency analysis -------------------
-# Plot frequency data with pyplot
-# y, f = spectrum.get_data(return_freqs=True)
-# y = 10*np.log10(y/1e-12) # Scale and convert to dB
-# y = np.mean(y, axis=0) # Average over all EEG channels
-# plt.plot(f, y)
-# plt.show()
-# raw = get_raw_from_xdf(paths[0])
-# raw.crop(tmax=60).load_data()
-# spectrum = raw.compute_psd()
-# fig = spectrum.plot(average=True)
-# preprocess(raw)
-# spectrum = raw.compute_psd()
-# fig = spectrum.plot(average=True)
-# raw.plot(block=True)
+    logging.info("Script run in {} s".format(time.time() - t))
     
