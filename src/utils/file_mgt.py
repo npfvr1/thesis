@@ -5,7 +5,7 @@ from pathlib import Path
 
 def get_random_eeg_file_paths(extension: str, count: int = 1) -> list[str]:
     """
-    Returns a list containing the relative paths of different random EEG files located within the 'data/raw' folder.
+    Get random EEG files.
 
     Parameters
     ----------
@@ -14,46 +14,51 @@ def get_random_eeg_file_paths(extension: str, count: int = 1) -> list[str]:
     count: int
         The number of paths to return.
     """
-    if count < 1:
-        return [""]
     
-    if extension not in ["xdf", "fif"]:
-        raise ValueError("Parameter extension must be 'xdf' or 'fif'")
+    if count < 1 or extension not in ["xdf", "fif"]:
+        raise ValueError("Invalid parameters")
 
     paths = list()
 
     for path in Path(os.path.join("data", "raw")).rglob("*." + extension):
         paths.append(path)
 
-    if count > len(paths):
+    if count >= len(paths):
         return paths
 
     return random.sample(paths, count)
 
 
-def get_random_eeg_file_paths_one_session(extension: str) -> list[str]:
+def get_random_eeg_file_paths_grouped_by_session(extension: str, session_count: int = 1) -> list[list[str]]:
     """
-    Get the three EEG files making up one session of a random patient.
+    Get random sets of EEG files making up one session.
     
     Parameters
     ----------
     extension: str
         The file extension to look for ("xdf" or "fif").
+    session_count: int
+        The number of sessions to return.
     """
     
-    if extension not in ["xdf", "fif"]:
-        raise ValueError("Parameter extension must be 'xdf' or 'fif'")
+    if session_count < 1 or extension not in ["xdf", "fif"]:
+        raise ValueError("Invalid parameters")
     
     paths = list()
 
-    while len(paths) != 3:
-        paths.clear()
-        temp = os.path.join("data", "raw")
-        folder = random.choice(os.listdir(temp)) # Random drug
-        temp = os.path.join(temp, folder)
-        folder = random.choice(os.listdir(temp)) # Random patient and session
-        temp = os.path.join(temp, folder)
-        for path in Path(temp).rglob("*." + extension):
-            paths.append(path)
+    main_path = os.path.join("data", "raw")
 
-    return paths
+    for drug_folder in [f.path for f in os.scandir(main_path) if f.is_dir()]:
+
+        for session_folder in [f.path for f in os.scandir(drug_folder) if f.is_dir()]:
+
+            temp_paths = list()
+
+            for path in Path(session_folder).rglob("*." + extension):
+                temp_paths.append(path)
+            paths.append(temp_paths)
+
+    if session_count >= len(paths):
+        return paths
+
+    return random.sample(paths, session_count)

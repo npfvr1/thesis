@@ -157,7 +157,7 @@ def main():
     # paths = get_random_eeg_file_paths_one_session("xdf")
     # paths.append(r"data\raw\DRUG1\ID33\Baseline\sub-P001_ses-S001_task-Default_run-001_eeg_old387.xdf")
 
-    stats = {"bad_channels":[], "bad_epochs":[]}
+    stats = {"bad_channels":[], "bad_epochs":[], "successes":0}
 
     for path in tqdm(paths):
 
@@ -215,8 +215,9 @@ def main():
 
         file_name = "\\".join(str(path).split("\\")[:-1]) + "\\clean-epo.fif" # Same path, different file name
         epochs.save(file_name, overwrite=True)
+        stats["successes"] += 1
 
-    logging.info("Number of successful recordings: {}".format(len(stats["bad_channels"])))
+    logging.info("Number of successfully cleaned recordings: {} ({}%)".format(stats["successes"], (stats["successes"]/len(paths)*100)))
 
     total = np.sum(np.array(stats["bad_channels"]))
     average = np.mean(np.array(stats["bad_channels"]))
