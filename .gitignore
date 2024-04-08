@@ -1,4 +1,6 @@
 data/
+config/
+outputs/
 requirements.txt
 failed_xdf_reading.txt
 profile.txt

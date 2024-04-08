@@ -15,7 +15,7 @@ def get_random_eeg_file_paths(extension: str, count: int = 1) -> list[str]:
         The number of paths to return.
     """
     
-    if count < 1 or extension not in ["xdf", "fif"]:
+    if count < 1 or extension not in ["xdf", "fif", "snirf"]:
         raise ValueError("Invalid parameters")
 
     paths = list()
