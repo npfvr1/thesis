@@ -3,7 +3,8 @@ import logging
 from copy import deepcopy
 
 import numpy as np
-from sklearn.cluster import KMeans, SpectralClustering
+from sklearn.cluster import KMeans, SpectralClustering, AffinityPropagation
+from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -21,8 +22,15 @@ def main(cfg : DictConfig) -> None:
 
     # ---- Clustering ----
 
-    kmeans = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
-    # sp = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
+    # cluster_algo = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
+
+    cluster_algo = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
+
+    # cluster_algo = AffinityPropagation(random_state=0).fit(X)
+    # cfg.hyperparameters.cluster_nb = 14
+    
+    # cluster_algo = {'labels_':[]}
+    # cluster_algo.labels_ = GaussianMixture(n_components=cfg.hyperparameters.cluster_nb).fit_predict(X)
 
     # ---- Results ----
 
@@ -43,7 +51,7 @@ def main(cfg : DictConfig) -> None:
     for i in range(cfg.hyperparameters.cluster_nb):
         cluster_by_drug[i] = deepcopy(drug_total)
 
-    for drug_id, cluster_id in zip(labels, kmeans.labels_):
+    for drug_id, cluster_id in zip(labels, cluster_algo.labels_):
 
         drug_total[drug_id] += 1
         cluster_total[cluster_id] += 1
@@ -51,41 +59,33 @@ def main(cfg : DictConfig) -> None:
         drug_by_cluster[drug_id][cluster_id] += 1
         cluster_by_drug[cluster_id][drug_id] += 1
 
-    log.info("Distribution by drug:")
+    print("Distribution by drug:")
     for drug_id in drug_total:
-        log.info("Drug {} :".format(drug_id))
+        print("Drug {} :".format(drug_id))
         for cluster_id in cluster_total:
-            log.info("\t{} ({}%) in cluster {}".format(drug_by_cluster[drug_id][cluster_id],
+            print("\t{} ({}%) in cluster {}".format(drug_by_cluster[drug_id][cluster_id],
                                                     np.round(drug_by_cluster[drug_id][cluster_id] / drug_total[drug_id] * 100, 1),
                                                     cluster_id))
 
-    log.info("Composition of clusters:")
+    print("Composition of clusters:")
     for cluster_id in cluster_total:
-        log.info("Cluster {} :".format(cluster_id))
+        print("Cluster {} :".format(cluster_id))
         for drug_id in drug_total:
-            log.info("\t{} ({}%) of drug {}".format(cluster_by_drug[cluster_id][drug_id],
+            print("\t{} ({}%) of drug {}".format(cluster_by_drug[cluster_id][drug_id],
                                                 np.round(cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] * 100, 1),
                                                 drug_id))
 
     # ---- Visualization ----
 
-    # fig = plt.figure()
-    # ax = fig.add_subplot()
-    # ax.scatter(X[:,0], X[:,1], marker="+", c=kmeans.labels_)
-    # plt.title("k-Means")
-    # plt.xlabel("Principal component 1")
-    # plt.ylabel("Principal component 2")
-    # plt.grid()
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.scatter(X[:,0], X[:,1], marker="o", c=cluster_algo.labels_)#, cmap='hsv')
+    plt.title("Clustered data")
+    plt.xlabel("Principal component 1")
+    plt.ylabel("Principal component 2")
+    plt.grid()
 
-    # fig = plt.figure()
-    # ax = fig.add_subplot()
-    # ax.scatter(X[:,0], X[:,1], marker="+", c=sp.labels_)
-    # plt.title("Spectral clustering")
-    # plt.xlabel("Principal component 1")
-    # plt.ylabel("Principal component 2")
-    # plt.grid()
-
-    # plt.show()
+    plt.show()
 
 
 if __name__ == "__main__":

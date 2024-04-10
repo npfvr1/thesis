@@ -22,11 +22,17 @@ def quantile_bucket(data, buckets):
 
 # ---- Load ----
 
-df = pd.read_csv(os.path.join("data", "processed", "eeg_features4.csv"))
+df = pd.read_csv(os.path.join("data", "processed", "eeg_features6.csv"))
+# df = pd.read_csv(os.path.join("data", "processed", "fnirs_features.csv"))
+# df = pd.read_csv(os.path.join("data", "processed", "pupillometry_features.csv")) # Make sure the keys are the same for pupillometry data
+
+# ---- Concatenate into a single feature vector ----
+
+# data = np.concatenate((eeg_data, fnirs_data, pupillometry_data), axis=?)
 
 # ---- Substract baseline from corresponding post administration 1 and 2 ----
 
-# Save the average/median baseline for the recordings that don't have a baseline 
+# Save the average/median baseline for the recordings that don't have a baseline # TODO : is that a good idea?
 average_baseline = df.drop(['drug', 'id'], axis=1).groupby("time").agg({'mean'}).values[0]
 median_baseline = df.drop(['drug', 'id'], axis=1).groupby("time").agg({'median'}).values[0]
 
@@ -51,13 +57,17 @@ for df in [only_post_one_df, only_post_two_df]:
             baseline_delta = baseline_for_this_session[3]
             baseline_theta = baseline_for_this_session[4]
             baseline_alpha = baseline_for_this_session[5]
-            baseline_se = baseline_for_this_session[6]
-            baseline_pe = baseline_for_this_session[7]
-            baseline_zc = baseline_for_this_session[8]
+            baseline_sigma = baseline_for_this_session[6]
+            baseline_beta = baseline_for_this_session[7]
+            baseline_se = baseline_for_this_session[8]
+            baseline_pe = baseline_for_this_session[9]
+            baseline_zc = baseline_for_this_session[10]
 
             df.at[index, 'delta'] -= baseline_delta
             df.at[index, 'theta'] -= baseline_theta
             df.at[index, 'alpha'] -= baseline_alpha
+            df.at[index, 'sigma'] -= baseline_sigma
+            df.at[index, 'beta'] -= baseline_beta
             df.at[index, 'se'] -= baseline_se
             df.at[index, 'pe'] -= baseline_pe
             df.at[index, 'zc'] -= baseline_zc
@@ -67,9 +77,11 @@ for df in [only_post_one_df, only_post_two_df]:
             df.at[index, 'delta'] -= median_baseline[0]
             df.at[index, 'theta'] -= median_baseline[1]
             df.at[index, 'alpha'] -= median_baseline[2]
-            df.at[index, 'se'] -= median_baseline[3]
-            df.at[index, 'pe'] -= median_baseline[4]
-            df.at[index, 'zc'] -= median_baseline[5]
+            df.at[index, 'sigma'] -= median_baseline[3]
+            df.at[index, 'beta'] -= median_baseline[4]
+            df.at[index, 'se'] -= median_baseline[5]
+            df.at[index, 'pe'] -= median_baseline[6]
+            df.at[index, 'zc'] -= median_baseline[7]
             continue
         
 # ---- Normalize data with quantile bucketing ----
@@ -129,29 +141,17 @@ for i in range(nb_pca_components):
 
 # ---- Visualize the PCA-transformed data ---
 
-# x = X[:, 0]
-# y = X[:, 1]
-# #z = X[:, 2]
+x = X[:, 0]
+y = X[:, 1]
+#z = X[:, 2]
 labels = df['drug'].values
-# fig = plt.figure()
-# ax = fig.add_subplot()#(projection='3d')
-# ax.scatter(x, y, marker="+", c=labels, cmap=ListedColormap(['red', 'blue', 'green']))
-# plt.xlabel("Principal component 1")
-# plt.ylabel("Principal component 2")
-# plt.grid()
-# plt.show()
-
-# df = pd.read_csv(os.path.join("data", "processed", "fnirs_features.csv"))
-# fnirs_data = df.to_numpy()
-# del df
-
-# df = pd.read_csv(os.path.join("data", "processed", "pupillometry_features.csv")) # Make sure the keys are the same for pupillometry data
-# pupillometry_data = df.to_numpy()
-# del df
-
-# ---- Concatenate into a single feature vector ----
-
-# data = np.concatenate((eeg_data, fnirs_data, pupillometry_data), axis=?)
+fig = plt.figure()
+ax = fig.add_subplot()#(projection='3d')
+ax.scatter(x, y, marker="o", c=labels, cmap=ListedColormap(['red', 'blue', 'green']))
+plt.xlabel("Principal component 1")
+plt.ylabel("Principal component 2")
+plt.grid()
+plt.show()
 
 # ---- Save as a file ----
 

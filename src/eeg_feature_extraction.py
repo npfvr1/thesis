@@ -6,6 +6,7 @@ import mne
 from tqdm import tqdm
 import pandas as pd
 import antropy
+from yasa import bandpower
 
 from utils.file_mgt import *
 
@@ -42,6 +43,32 @@ def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, flo
                 temp_freq = freq
 
     return (delta_power, theta_power, alpha_power)
+
+
+def compute_brain_wave_band_power2(epochs: mne.Epochs) -> tuple[float, float, float, float, float]:
+    delta_power = 0
+    theta_power = 0
+    alpha_power = 0
+    sigma_power = 0
+    beta_power = 0
+
+    epochs_data = epochs.get_data()
+
+    for epoch_id in range(epochs_data.shape[0]):
+
+        df = bandpower(data = epochs_data[epoch_id] * 1e6,
+                       sf = float(epochs._raw_sfreq[0]),
+                       ch_names = epochs.ch_names,
+                       relative = True)
+
+        delta_power += df[['Delta']].values.sum()
+        theta_power += df[['Theta']].values.sum()
+        alpha_power += df[['Alpha']].values.sum()
+        sigma_power += df[['Sigma']].values.sum()
+        beta_power += df[['Beta']].values.sum()
+        del df
+
+    return (delta_power, theta_power, alpha_power, sigma_power, beta_power)
 
 
 def compute_entropy_features(epochs: mne.Epochs) -> tuple[float, float, float]:
@@ -106,31 +133,37 @@ def main():
         
         # ---- Split by event type ----
 
-        epochs_audio = epochs['Audio']
+        # epochs_audio = epochs['Audio']
         epochs_arithmetics_moderate = epochs['Mental arithmetics moderate']
         epochs_arithmetics_hard = epochs['Mental arithmetics hard']
         event_count = len(epochs.selection)
         del epochs
-        epochs_audio.crop(tmin=0, tmax=10)
+        # epochs_audio.crop(tmin=0, tmax=10)
         epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
         epochs_arithmetics_hard.crop(tmin=0, tmax=25)
 
         # ---- Brain wave band power ----
 
         # TODO : hyperparameter (choice of using all event types or only some)
-        powers_audio = compute_brain_wave_band_power(epochs_audio)
-        powers_arithmetics_moderate = compute_brain_wave_band_power(epochs_arithmetics_moderate)
-        powers_arithmetics_hard = compute_brain_wave_band_power(epochs_arithmetics_moderate)
+        # powers_audio = compute_brain_wave_band_power2(epochs_audio)
+        powers_arithmetics_moderate = compute_brain_wave_band_power2(epochs_arithmetics_moderate)
+        powers_arithmetics_hard = compute_brain_wave_band_power2(epochs_arithmetics_moderate)
         
-        delta_power = powers_audio[0] + powers_arithmetics_moderate[0] + powers_arithmetics_hard[0]
+        delta_power = powers_arithmetics_moderate[0] + powers_arithmetics_hard[0] # powers_audio[0] + 
         delta_power /= event_count
         features.append(delta_power)
-        theta_power = powers_audio[1] + powers_arithmetics_moderate[1] + powers_arithmetics_hard[1]
+        theta_power = powers_arithmetics_moderate[1] + powers_arithmetics_hard[1] # powers_audio[1] + 
         theta_power /= event_count
         features.append(theta_power)
-        alpha_power = powers_audio[2] + powers_arithmetics_moderate[2] + powers_arithmetics_hard[2]
+        alpha_power = powers_arithmetics_moderate[2] + powers_arithmetics_hard[2] # powers_audio[2] + 
         alpha_power /= event_count
         features.append(alpha_power)
+        sigma_power = powers_arithmetics_moderate[3] + powers_arithmetics_hard[3] # powers_audio[3] + 
+        sigma_power /= event_count
+        features.append(sigma_power)
+        beta_power = powers_arithmetics_moderate[4] + powers_arithmetics_hard[4] # powers_audio[4] +
+        beta_power /= event_count
+        features.append(beta_power)
 
         # ---- Entropy and nonlinear features ----
 
@@ -157,13 +190,13 @@ def main():
 
         # ---- Save to data structure ----
 
-        assert len(features) == 9
+        assert len(features) == 11
         feature_list.append(features)
     
     # ---- Save to file ----
 
-    df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'delta', 'theta', 'alpha', 'se', 'pe', 'zc'])
-    df.to_csv(os.path.join("data", "processed", "eeg_features4.csv"), index = False)
+    df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'delta', 'theta', 'alpha', 'sigma', 'beta', 'se', 'pe', 'zc'])
+    df.to_csv(os.path.join("data", "processed", "eeg_features7.csv"), index = False)
 
 
 if __name__ == "__main__":
