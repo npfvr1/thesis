@@ -20,11 +20,15 @@ def main(cfg : DictConfig) -> None:
     X = np.load(os.path.join("data", "processed", "X.npy"))
     labels = np.load(os.path.join("data", "processed", "labels.npy"))
 
-    # ---- Clustering ----
+    # TODO : Experiment pipeline
+    # ---- Select subset of features ----
+    # ---- PCA ----
 
-    # cluster_algo = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
+    # ---- Clustering ---- # TODO : Only if there are >= 2 PCA components? (If there is only one then the "clustering" comes down to choosing one value threshold to dsitinguish two clusters in 1D)
 
-    cluster_algo = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
+    cluster_algo = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
+
+    # cluster_algo = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
 
     # cluster_algo = AffinityPropagation(random_state=0).fit(X)
     # cfg.hyperparameters.cluster_nb = 14
@@ -32,11 +36,12 @@ def main(cfg : DictConfig) -> None:
     # cluster_algo = {'labels_':[]}
     # cluster_algo.labels_ = GaussianMixture(n_components=cfg.hyperparameters.cluster_nb).fit_predict(X)
 
-    # ---- Results ----
+    # ---- Results and scoring ----
 
     # Explain the distributions of drugs and clusters
     drug_total = {1:0, 2:0, 3:0}
     cluster_total = {}
+    score = 0
 
     for i in range(cfg.hyperparameters.cluster_nb):
         cluster_total[i] = 0
@@ -74,15 +79,20 @@ def main(cfg : DictConfig) -> None:
             print("\t{} ({}%) of drug {}".format(cluster_by_drug[cluster_id][drug_id],
                                                 np.round(cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] * 100, 1),
                                                 drug_id))
+        min_drug_population = min([cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] for drug_id in drug_total])
+        score += cluster_total[cluster_id] * (1 - min_drug_population)
+
+    print("Experiment score = {}".format(score))
 
     # ---- Visualization ----
 
     fig = plt.figure()
     ax = fig.add_subplot()
     ax.scatter(X[:,0], X[:,1], marker="o", c=cluster_algo.labels_)#, cmap='hsv')
-    plt.title("Clustered data")
-    plt.xlabel("Principal component 1")
-    plt.ylabel("Principal component 2")
+    # plt.title("Clustered data")
+    # plt.xlabel("PC 1")
+    # plt.ylabel("PC 2")
+    plt.locator_params(nbins=3)
     plt.grid()
 
     plt.show()
