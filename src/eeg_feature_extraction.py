@@ -7,6 +7,7 @@ from tqdm import tqdm
 import pandas as pd
 import antropy
 from yasa import bandpower
+import numpy as np
 
 from utils.file_mgt import *
 
@@ -15,37 +16,11 @@ from utils.file_mgt import *
 Extracts features and saves them in a .csv file.
 """
 
-def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, float]:
+
+def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, float, float, float]:
     """
-    Goes through all epochs and integrate the PSD using a step function for each channel.
-    Returns
-    -------
-        The total delta, theta, and alpha band powers.
+    Computes the relative band power averaged across channels and epochs, for Delta, Theta, Alpha, Sigma, and Beta frequency bands.
     """
-    delta_power = 0
-    theta_power = 0
-    alpha_power = 0
-    
-    spectrum = epochs.compute_psd(fmax=30)
-    for event_id in range(spectrum._data.shape[0]):
-        for channel_id in range(spectrum._data[event_id].shape[0]):
-            temp_freq = 0
-            for freq, power in zip(spectrum.freqs, spectrum._data[event_id][channel_id]):
-                delta_freq = freq - temp_freq
-                if 1 <= freq and freq < 4:
-                    delta_power += power * delta_freq
-                elif 4 <= freq and freq < 8:
-                    theta_power += power * delta_freq
-                elif 8 <= freq and freq < 12:
-                    alpha_power += power * delta_freq
-                elif freq >= 12:
-                    break
-                temp_freq = freq
-
-    return (delta_power, theta_power, alpha_power)
-
-
-def compute_brain_wave_band_power2(epochs: mne.Epochs) -> tuple[float, float, float, float, float]:
     delta_power = 0
     theta_power = 0
     alpha_power = 0
@@ -61,35 +36,46 @@ def compute_brain_wave_band_power2(epochs: mne.Epochs) -> tuple[float, float, fl
                        ch_names = epochs.ch_names,
                        relative = True)
 
-        delta_power += df[['Delta']].values.sum()
-        theta_power += df[['Theta']].values.sum()
-        alpha_power += df[['Alpha']].values.sum()
-        sigma_power += df[['Sigma']].values.sum()
-        beta_power += df[['Beta']].values.sum()
+        delta_power += np.mean(df[['Delta']].values)
+        theta_power += np.mean(df[['Theta']].values)
+        alpha_power += np.mean(df[['Alpha']].values)
+        sigma_power += np.mean(df[['Sigma']].values)
+        beta_power += np.mean(df[['Beta']].values)
         del df
+
+    delta_power /= epochs_data.shape[0]
+    theta_power /= epochs_data.shape[0]
+    alpha_power /= epochs_data.shape[0]
+    sigma_power /= epochs_data.shape[0]
+    beta_power /= epochs_data.shape[0]
 
     return (delta_power, theta_power, alpha_power, sigma_power, beta_power)
 
 
 def compute_entropy_features(epochs: mne.Epochs) -> tuple[float, float, float]:
     """
-    Goes through all epochs and compute the normalized spectral entropy, permutation entropy, and number of zero crsossings.
-    (Per channel)
+    Computes three complexity features (spectral and permutation entropies, and zero crossings) averaged across channels and across epochs.
     """
     se = 0
     pe = 0
     zc = 0
     
-    for event_id in range(epochs._data.shape[0]):
-        for channel_id in range(epochs._data[event_id].shape[0]):
-            x = epochs._data[event_id][channel_id]
+    epochs_data = epochs.get_data()
+    
+    for epoch_id in range(epochs_data.shape[0]):
+        for channel_id in range(epochs_data.shape[1]):
+            x = epochs_data[epoch_id][channel_id]
             se += antropy.spectral_entropy(x, sf = epochs.info['sfreq'], method = 'welch', normalize = True)
             pe += antropy.perm_entropy(x, normalize = True)
             zc += antropy.num_zerocross(x, normalize = True)
 
-    se /= epochs._data[event_id].shape[0]
-    pe /= epochs._data[event_id].shape[0]
-    zc /= epochs._data[event_id].shape[0]
+    se /= epochs_data.shape[1]
+    pe /= epochs_data.shape[1]
+    zc /= epochs_data.shape[1]
+
+    se /= epochs_data.shape[0]
+    pe /= epochs_data.shape[0]
+    zc /= epochs_data.shape[0]
 
     return (se, pe, zc)
 
@@ -102,8 +88,6 @@ def main():
 
     paths = list()
     paths = get_random_eeg_file_paths("fif", 500)
-    # paths = get_random_eeg_file_paths_grouped_by_session("fif", 5)
-    # paths.append(r"")
 
     feature_list = []
 
@@ -121,65 +105,61 @@ def main():
         # ---- Epoch ----
 
         epochs = mne.read_epochs(path)
-        # epochs.plot(block=True, events=True)
-
-        # # Visualize the data distributions
-        # for channel_index in range(10):#evoked_audio.data.shape[0]):
-        #     data = evoked_audio.data[channel_index]
-        #     plt.figure()
-        #     plt.hist(data*1e6, color='gold', ec='black', bins=50)
-        #     plt.title("Channel {}".format(channel_index))
-        # plt.show()
         
         # ---- Split by event type ----
 
-        # epochs_audio = epochs['Audio']
+        epochs_audio = epochs['Audio']
+        audio_event_count = epochs_audio.selection.shape[0]
         epochs_arithmetics_moderate = epochs['Mental arithmetics moderate']
+        arithmetics_moderate_event_count = epochs_arithmetics_moderate.selection.shape[0]
         epochs_arithmetics_hard = epochs['Mental arithmetics hard']
-        event_count = len(epochs.selection)
+        arithmetics_hard_event_count = epochs_arithmetics_hard.selection.shape[0]
         del epochs
-        # epochs_audio.crop(tmin=0, tmax=10)
+        epochs_audio.crop(tmin=0, tmax=10)
         epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
         epochs_arithmetics_hard.crop(tmin=0, tmax=25)
 
         # ---- Brain wave band power ----
 
-        # TODO : hyperparameter (choice of using all event types or only some)
-        # powers_audio = compute_brain_wave_band_power2(epochs_audio)
-        powers_arithmetics_moderate = compute_brain_wave_band_power2(epochs_arithmetics_moderate)
-        powers_arithmetics_hard = compute_brain_wave_band_power2(epochs_arithmetics_moderate)
-        
-        delta_power = powers_arithmetics_moderate[0] + powers_arithmetics_hard[0] # powers_audio[0] + 
-        delta_power /= event_count
-        features.append(delta_power)
-        theta_power = powers_arithmetics_moderate[1] + powers_arithmetics_hard[1] # powers_audio[1] + 
-        theta_power /= event_count
-        features.append(theta_power)
-        alpha_power = powers_arithmetics_moderate[2] + powers_arithmetics_hard[2] # powers_audio[2] + 
-        alpha_power /= event_count
-        features.append(alpha_power)
-        sigma_power = powers_arithmetics_moderate[3] + powers_arithmetics_hard[3] # powers_audio[3] + 
-        sigma_power /= event_count
-        features.append(sigma_power)
-        beta_power = powers_arithmetics_moderate[4] + powers_arithmetics_hard[4] # powers_audio[4] +
-        beta_power /= event_count
-        features.append(beta_power)
+        powers_audio = compute_brain_wave_band_power(epochs_audio)
+        powers_arithmetics_moderate = compute_brain_wave_band_power(epochs_arithmetics_moderate)
+        powers_arithmetics_hard = compute_brain_wave_band_power(epochs_arithmetics_hard)
+
+        powers = []
+
+        for i in range(5):
+            # weighted mean of powers (weighted by even counts)
+            temp_power = (audio_event_count * powers_audio[i]
+                          + arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
+                          + arithmetics_hard_event_count * powers_arithmetics_hard[i]
+                          ) / (audio_event_count
+                               + arithmetics_moderate_event_count
+                               + arithmetics_hard_event_count
+                               )
+            powers.append(temp_power)
+
+        features += powers
 
         # ---- Entropy and nonlinear features ----
 
         entropies_audio = compute_entropy_features(epochs_audio)
         entropies_arithmetics_moderate = compute_entropy_features(epochs_arithmetics_moderate)
-        entropies_arithmetics_hard = compute_entropy_features(epochs_arithmetics_moderate)
+        entropies_arithmetics_hard = compute_entropy_features(epochs_arithmetics_hard)
 
-        se = entropies_audio[0] + entropies_arithmetics_moderate[0] + entropies_arithmetics_hard[0]
-        se /= event_count
-        features.append(se)
-        pe = entropies_audio[1] + entropies_arithmetics_moderate[1] + entropies_arithmetics_hard[1]
-        pe /= event_count
-        features.append(pe)
-        zc = entropies_audio[2] + entropies_arithmetics_moderate[2] + entropies_arithmetics_hard[2]
-        zc /= event_count
-        features.append(zc)
+        complexities = []
+
+        for i in range(3):
+            # weighted mean of complexitiesy measures (weighted by even counts)
+            temp_complexity = (audio_event_count * entropies_audio[i]
+                          + arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
+                          + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
+                          ) / (audio_event_count
+                               + arithmetics_moderate_event_count
+                               + arithmetics_hard_event_count
+                               )
+            powers.append(temp_complexity)
+
+        features += complexities
 
         # ---- AR process coefficients ----
 
@@ -196,7 +176,7 @@ def main():
     # ---- Save to file ----
 
     df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'delta', 'theta', 'alpha', 'sigma', 'beta', 'se', 'pe', 'zc'])
-    df.to_csv(os.path.join("data", "processed", "eeg_features7.csv"), index = False)
+    df.to_csv(os.path.join("data", "processed", "eeg_features.csv"), index = False)
 
 
 if __name__ == "__main__":

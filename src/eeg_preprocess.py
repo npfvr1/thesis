@@ -172,8 +172,8 @@ def main():
         # ---- Bad channels ---- 
 
         handler = NoisyChannels(raw)
-        handler.find_bad_by_deviation()  # high/low overall amplitudes
-        handler.find_bad_by_hfnoise()  # high-frequency noise
+        handler.find_bad_by_deviation() # high/low overall amplitudes
+        handler.find_bad_by_hfnoise() # high-frequency noise
         bad_channels = handler.get_bads()
         logging.info("Bad channels found by pyprep ({}) : {}".format(len(bad_channels), bad_channels))
         stats["bad_channels"].append(len(bad_channels))
@@ -182,15 +182,13 @@ def main():
             raw.interpolate_bads()
             raw = raw.set_eeg_reference(ref_channels="average")
 
-        # TODO : Decide whether or not to focus only on some channels based on their position (drop the other ones)
-
         # ---- Filtering ----
 
         filter_raw(raw)
 
         # ---- Epoch ----
 
-        epochs = epochs_from_raw(raw).load_data() # TODO : consider the decim parameter to downsample and save memory
+        epochs = epochs_from_raw(raw).load_data()
         del raw
 
         # ---- Bad epochs ----
@@ -232,4 +230,3 @@ if __name__ == "__main__":
     t = time.time()
     main()
     logging.info("Script run in {} s".format(time.time() - t))
-    

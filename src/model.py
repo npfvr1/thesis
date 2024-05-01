@@ -1,13 +1,14 @@
 import os
 import logging
 from copy import deepcopy
+from itertools import combinations
 
 import numpy as np
-from sklearn.cluster import KMeans, SpectralClustering, AffinityPropagation
-from sklearn.mixture import GaussianMixture
+from sklearn.cluster import KMeans #, SpectralClustering, AffinityPropagation
+# from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 
 @hydra.main(version_base=None, config_path="../config", config_name="model")
@@ -20,82 +21,88 @@ def main(cfg : DictConfig) -> None:
     X = np.load(os.path.join("data", "processed", "X.npy"))
     labels = np.load(os.path.join("data", "processed", "labels.npy"))
 
-    # TODO : Experiment pipeline
-    # ---- Select subset of features ----
-    # ---- PCA ----
+    feature_ids_subsets = combinations(range(len(X[0])), cfg.hyperparameters.feature_nb)
 
-    # ---- Clustering ---- # TODO : Only if there are >= 2 PCA components? (If there is only one then the "clustering" comes down to choosing one value threshold to dsitinguish two clusters in 1D)
+    for feature_ids in feature_ids_subsets:
 
-    cluster_algo = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
+        # ---- Select subset of features ----
 
-    # cluster_algo = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
+        X = X[:, list(feature_ids)]
 
-    # cluster_algo = AffinityPropagation(random_state=0).fit(X)
-    # cfg.hyperparameters.cluster_nb = 14
-    
-    # cluster_algo = {'labels_':[]}
-    # cluster_algo.labels_ = GaussianMixture(n_components=cfg.hyperparameters.cluster_nb).fit_predict(X)
+        # ---- PCA ----
 
-    # ---- Results and scoring ----
+        # ---- Clustering ---- # TODO : Only if there are >= 2 PCA components? (If there is only one then the "clustering" comes down to choosing one value threshold to dsitinguish two clusters in 1D)
 
-    # Explain the distributions of drugs and clusters
-    drug_total = {1:0, 2:0, 3:0}
-    cluster_total = {}
-    score = 0
+        cluster_algo = KMeans(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0, n_init = "auto").fit(X)
 
-    for i in range(cfg.hyperparameters.cluster_nb):
-        cluster_total[i] = 0
+        # cluster_algo = SpectralClustering(n_clusters = cfg.hyperparameters.cluster_nb, random_state = 0).fit(X)
 
-    drug_by_cluster = {1:deepcopy(cluster_total),
-                    2:deepcopy(cluster_total),
-                    3:deepcopy(cluster_total)
-                    }
-    
-    cluster_by_drug = {}
+        # cluster_algo = AffinityPropagation(random_state=0).fit(X)
+        # cfg.hyperparameters.cluster_nb = 14
+        
+        # cluster_algo = {'labels_':[]}
+        # cluster_algo.labels_ = GaussianMixture(n_components=cfg.hyperparameters.cluster_nb).fit_predict(X)
 
-    for i in range(cfg.hyperparameters.cluster_nb):
-        cluster_by_drug[i] = deepcopy(drug_total)
+        # ---- Results and scoring ----
 
-    for drug_id, cluster_id in zip(labels, cluster_algo.labels_):
+        # Explain the distributions of drugs and clusters
+        drug_total = {1:0, 2:0, 3:0}
+        cluster_total = {}
+        score = 0
 
-        drug_total[drug_id] += 1
-        cluster_total[cluster_id] += 1
+        for i in range(cfg.hyperparameters.cluster_nb):
+            cluster_total[i] = 0
 
-        drug_by_cluster[drug_id][cluster_id] += 1
-        cluster_by_drug[cluster_id][drug_id] += 1
+        drug_by_cluster = {1:deepcopy(cluster_total),
+                        2:deepcopy(cluster_total),
+                        3:deepcopy(cluster_total)
+                        }
+        
+        cluster_by_drug = {}
 
-    print("Distribution by drug:")
-    for drug_id in drug_total:
-        print("Drug {} :".format(drug_id))
-        for cluster_id in cluster_total:
-            print("\t{} ({}%) in cluster {}".format(drug_by_cluster[drug_id][cluster_id],
-                                                    np.round(drug_by_cluster[drug_id][cluster_id] / drug_total[drug_id] * 100, 1),
-                                                    cluster_id))
+        for i in range(cfg.hyperparameters.cluster_nb):
+            cluster_by_drug[i] = deepcopy(drug_total)
 
-    print("Composition of clusters:")
-    for cluster_id in cluster_total:
-        print("Cluster {} :".format(cluster_id))
+        for drug_id, cluster_id in zip(labels, cluster_algo.labels_):
+
+            drug_total[drug_id] += 1
+            cluster_total[cluster_id] += 1
+
+            drug_by_cluster[drug_id][cluster_id] += 1
+            cluster_by_drug[cluster_id][drug_id] += 1
+
+        log.info("Distribution by drug:")
         for drug_id in drug_total:
-            print("\t{} ({}%) of drug {}".format(cluster_by_drug[cluster_id][drug_id],
-                                                np.round(cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] * 100, 1),
-                                                drug_id))
-        min_drug_population = min([cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] for drug_id in drug_total])
-        score += cluster_total[cluster_id] * (1 - min_drug_population)
+            log.info("Drug {} :".format(drug_id))
+            for cluster_id in cluster_total:
+                log.info("\t{} ({}%) in cluster {}".format(drug_by_cluster[drug_id][cluster_id],
+                                                        np.round(drug_by_cluster[drug_id][cluster_id] / drug_total[drug_id] * 100, 1),
+                                                        cluster_id))
 
-    print("Experiment score = {}".format(score))
+        log.info("Composition of clusters:")
+        for cluster_id in cluster_total:
+            log.info("Cluster {} :".format(cluster_id))
+            for drug_id in drug_total:
+                log.info("\t{} ({}%) of drug {}".format(cluster_by_drug[cluster_id][drug_id],
+                                                    np.round(cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] * 100, 1),
+                                                    drug_id))
+            min_drug_population = min([cluster_by_drug[cluster_id][drug_id] / cluster_total[cluster_id] for drug_id in drug_total])
+            score += cluster_total[cluster_id] * (1 - min_drug_population)
 
-    # ---- Visualization ----
+        log.info("Experiment score = {}".format(score))
 
-    fig = plt.figure()
-    ax = fig.add_subplot()
-    ax.scatter(X[:,0], X[:,1], marker="o", c=cluster_algo.labels_)#, cmap='hsv')
-    # plt.title("Clustered data")
-    # plt.xlabel("PC 1")
-    # plt.ylabel("PC 2")
-    plt.locator_params(nbins=3)
-    plt.grid()
+        # ---- Visualization ----
 
-    plt.show()
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        ax.scatter(X[:,0], X[:,1], marker="o", c=cluster_algo.labels_)#, cmap='hsv')
+        # plt.title("Clustered data")
+        # plt.xlabel("PC 1")
+        # plt.ylabel("PC 2")
+        plt.locator_params(nbins=3)
+        plt.grid()
+
+        plt.show()
 
 
 if __name__ == "__main__":

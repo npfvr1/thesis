@@ -1,4 +1,5 @@
 import os
+from copy import deepcopy
 
 import pandas as pd
 import numpy as np
@@ -36,7 +37,22 @@ for session in range(1, 4):
     for recording in ['A', 'B', 'C']:
 
         columns = ["V{}{}_{}".format(session, recording, type) for type in ['auditory', 'moderate', 'hard']] # TODO : hyperparameter (what event types are used)
-        scores = df[columns].sum(axis=1, skipna=False).values
+        # scores = df[columns].sum(axis=1, skipna=False).values
+
+        # instead of summing the three scores, we :
+        # 1. normalize them so they're on the same scale
+        scores = df[columns].values
+        scores[:,0] /= 3
+        temp_scores = deepcopy(scores[:,0])
+        scores[:,1] /= 5
+        scores[:,2] /= 5
+        # 2. threshold them at half the max score into a binary activation
+        scores[scores >= 0.5] = 1
+        scores[scores < 0.5] = 0
+        temp_scores[temp_scores < 1] = 0 # different threshold for audio stimuli
+        scores[:,0] = temp_scores
+        # 3. then sum into a score /3
+        scores = np.sum(scores, axis=1)
 
         # Now we have all the data for all patients for one session number and one recording
 
@@ -55,6 +71,6 @@ nan_count = df['pupillometry_score'].isna().sum()
 print("{} values are missing".format(nan_count))
 plt.hist(df['pupillometry_score'].values, bins = 50)
 plt.title("Pupillometry score distribution")
-plt.xlabel("Score (/13)")
+plt.xlabel("Score (/3)")
 plt.ylabel("Count")
 plt.show()
