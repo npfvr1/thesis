@@ -149,7 +149,7 @@ def main():
         complexities = []
 
         for i in range(3):
-            # weighted mean of complexitiesy measures (weighted by even counts)
+            # weighted mean of complexity measures (weighted by even counts)
             temp_complexity = (audio_event_count * entropies_audio[i]
                           + arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
                           + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
@@ -157,7 +157,7 @@ def main():
                                + arithmetics_moderate_event_count
                                + arithmetics_hard_event_count
                                )
-            powers.append(temp_complexity)
+            complexities.append(temp_complexity)
 
         features += complexities
 

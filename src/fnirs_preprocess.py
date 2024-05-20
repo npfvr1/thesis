@@ -58,15 +58,15 @@ for path in tqdm(paths):
 
     raw_od = mne.preprocessing.nirs.optical_density(raw_intensity)
     del raw_intensity
-    raw_od.plot()
+    # raw_od.plot()
 
     # ---- Detect and mark bad channels based on SCI ----
 
     sci = mne.preprocessing.nirs.scalp_coupling_index(raw_od)
-    fig, ax = plt.subplots(layout="constrained")
-    ax.hist(sci)
-    ax.set(xlabel="Scalp Coupling Index", ylabel="Count", xlim=[0, 1])
-    plt.show()
+    # fig, ax = plt.subplots(layout="constrained")
+    # ax.hist(sci)
+    # ax.set(xlabel="Scalp Coupling Index", ylabel="Count", xlim=[0, 1])
+    # plt.show()
     raw_od.info["bads"] = list(compress(raw_od.ch_names, sci < 0.5))
     # raw_od.interpolate_bads() # Need montage for this
 
@@ -97,7 +97,7 @@ for path in tqdm(paths):
                   "Mental arithmetics moderate":1,
                   "Mental arithmetics hard":2
                   }
-    reject_criteria = dict(hbo=80e-6)
+    # reject_criteria = dict(hbo=80e-6)
     tmin, tmax = -10, 25
 
     epochs = mne.Epochs(
@@ -106,7 +106,7 @@ for path in tqdm(paths):
         event_id=event_dict,
         tmin=tmin,
         tmax=tmax,
-        reject=reject_criteria,
+        # reject=reject_criteria,
         reject_by_annotation=True,
         proj=True,
         baseline=(None, 0),

@@ -1,11 +1,12 @@
 import os
+from copy import deepcopy
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 from sklearn import decomposition, preprocessing
-from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
 from matplotlib.colors import ListedColormap
 
 
@@ -20,39 +21,30 @@ def quantile_bucket(data, buckets):
     data = np.digitize(data, bins = bins)
     return data
 
+
 # ---- Load ----
 
-df_eeg = pd.read_csv(os.path.join("data", "processed", "eeg_features7 copy.csv"))
+df_eeg = pd.read_csv(os.path.join("data", "processed", "eeg_features copy.csv"))
 df_fnirs = pd.read_csv(os.path.join("data", "processed", "fnirs_features copy.csv"))
 df_pupillometry = pd.read_csv(os.path.join("data", "processed", "pupillometry_features.csv"))
 
-# ---- Concatenate into a single feature vector ----
-
-# print(df_pupillometry.shape)
-# df_pupillometry = df_pupillometry.dropna()
-# print(df_pupillometry.shape)
+# ---- Merge ----
 
 df_eeg.id.astype('Int64')
 df_fnirs.id.astype('Int64')
 df_pupillometry.id.astype('Int64')
-
 df = pd.merge(left=df_eeg, right=df_pupillometry, left_on=['id', 'drug', 'time'], right_on=['id', 'drug', 'time'])
 df = pd.merge(left=df, right=df_fnirs, left_on=['id', 'drug', 'time'], right_on=['id', 'drug', 'time'])
 del df_eeg, df_pupillometry, df_fnirs
 
-# print(df.shape)
-# df = df.dropna()
-# print(df.shape)
-
-# ---- Substract baseline from corresponding post administration 1 and 2 ----
+# ---- [Data preparation] Substract baseline from corresponding post administration 1 and 2 ----
 
 substract_baseline = True
 use_median_baseline = False
 
 if substract_baseline:
     
-    # Save the average/median baseline for the recordings that don't have a baseline # TODO : is that a good idea? Probably not
-    average_baseline = df.drop(['drug', 'id'], axis=1).groupby("time").agg({'mean'}).values[0]
+    # Save the average (with 'mean') or median (with 'median') baseline for the recordings that don't have a baseline # TODO : is that a good idea? Probably not
     median_baseline = df.drop(['drug', 'id'], axis=1).groupby("time").agg({'median'}).values[0]
 
     only_baseline_df = df[df['time'] == 0]
@@ -67,7 +59,7 @@ if substract_baseline:
             drug = row['drug']
             try:
                 baseline_for_this_session = only_baseline_df.loc[(only_baseline_df['drug'] == drug) & (only_baseline_df['id'] == id)].values[0]
-                df.loc[index,df.columns.values[3:]] -= baseline_for_this_session[3:]
+                df.loc[index, df.columns.values[3:]] -= baseline_for_this_session[3:]
             except Exception as e: # Most likely the baseline was not found
                 # print(e)
                 if use_median_baseline:
@@ -80,34 +72,28 @@ if substract_baseline:
 df = df.dropna()
 print("Number of data points: {}".format(len(df)))
 
-# ---- Time variation of features by drug group ----
-
-# df = df.drop(['se', 'pe', 'zc'], axis=1)
+# ---- Visualizations ----
 
 drug_one_df = df[df['drug'] == 1]
 drug_two_df = df[df['drug'] == 2]
 drug_three_df = df[df['drug'] == 3]
-
 c = len(df.columns) - 3
 del df
+all_recordings_df = pd.concat([drug_one_df, drug_two_df, drug_three_df])
 
 time_dict = {0:0, 1:15, 2:60}
 color_dict = {0:"red", 1:"green", 2:"blue"}
 coord_dict = {"delta":[-0.26, 0.26],
-              "theta":[-0.15,0.15],
-              "alpha":[-0.2,0.2],
-              "sigma":[-0.05,0.05],
-              "beta":[-0.2,0.2],
-              "se":[-0.2,0.2],
+              "theta":[-0.16,0.16],
+              "alpha":[-0.08,0.08],
+              "sigma":[-0.045,0.045],
+              "beta":[-0.12,0.12],
+              "se":[-0.18,0.18],
               "pe":[-0.07,0.07],
               "zc":[-0.13,0.13],
               "pupillometry_score":[-2.5,2.5],
-              "fnirs_1":[-0.3, 0.3]
+              "fnirs_1":[-1.01, 1.01]
               }
-
-
-
-all_recordings_df = pd.concat([drug_one_df, drug_two_df, drug_three_df])
 results = {0:{1:{},
               2:{}
               },
@@ -123,13 +109,12 @@ for feature in all_recordings_df.columns:
         for j in range(1, 3):
             results[i][j][feature] = {"positive":0, "total":0}
 
-
 patient_level = False
 
 if patient_level:
     for patient_id in all_recordings_df['id'].unique():
-        # fig, axs = plt.subplots(3, c, constrained_layout=True)
-        # fig.suptitle("Patient number {}".format(patient_id))
+        fig, axs = plt.subplots(3, c, constrained_layout=True)
+        fig.suptitle("Patient number {}".format(patient_id))
         print("Patient number {}".format(patient_id))
 
         df = all_recordings_df[all_recordings_df['id'] == patient_id]
@@ -153,80 +138,209 @@ if patient_level:
                         results[drug_id][time][feature]["total"] += 1
                         results[drug_id][time][feature]["positive"] += int(temp_y[0] > 0)
                     del temp_df
-                    # y.append(np.mean(temp_y))
-                    # x.append(time_dict[time])
+                    y.append(np.mean(temp_y))
+                    x.append(time_dict[time])
 
-        #         ax = axs[drug_id, feature_id - 3]
-        #         ax.scatter(x, y, c = color_dict[drug_id])
-        #         ax.axhline()
-        #         ax.set_ylim(coord_dict[feature])
+                ax = axs[drug_id, feature_id - 3]
+                ax.scatter(x, y, c = color_dict[drug_id])
+                ax.axhline()
+                ax.set_ylim(coord_dict[feature])
 
-        #         if drug_id == 0:
-        #             ax.set_title("{}".format(feature))
+                if drug_id == 0:
+                    ax.set_title("{}".format(feature))
 
-        #         ax.tick_params(bottom=False)          
+                ax.tick_params(bottom=False)          
 
-        #     axs[drug_id, 0].set_ylabel("Drug {}".format(drug_id + 1))
+            axs[drug_id, 0].set_ylabel("Drug {}".format(drug_id + 1))
 
-        # figManager = plt.get_current_fig_manager()
-        # figManager.window.showMaximized()
-        # plt.show()
+        figManager = plt.get_current_fig_manager()
+        figManager.window.showMaximized()
+        plt.show()
 
+group_level = False
 
+if group_level:
+    fig, axs = plt.subplots(3, c, constrained_layout=True)
 
-fig, axs = plt.subplots(3, c, constrained_layout=True)
+    for drug_id, df in enumerate([drug_one_df, drug_two_df, drug_three_df]):
 
-for drug_id, df in enumerate([drug_one_df, drug_two_df, drug_three_df]):
+        for feature_id, feature in enumerate(df.columns):
 
-    for feature_id, feature in enumerate(df.columns):
+            if feature in ['id', 'drug', 'time']:
+                continue
+
+            y = []
+            x = []
+            weights = []
+
+            for time in range(1, 3):
+
+                temp_df = df[df['time'] == time]
+                temp_y = temp_df[feature].values
+                # temp_y = quantile_bucket(temp_y, 10)
+                del temp_df
+                y.append(np.mean(temp_y))
+                x.append(time_dict[time])
+
+                # y = np.concatenate((y, temp_y), axis=None)
+                # x += [time_dict[time]] * len(temp_y)
+
+                weights.append(len(temp_y))
+
+                # y.append(temp_y)
+
+            ax = axs[drug_id, feature_id - 3]
+
+            # ax.boxplot(y)
+
+            ax.scatter(x, y, c = color_dict[drug_id])
+            # ax.axhline() # horizontal line at y = 0 by default
+            ax.set_ylim(coord_dict[feature])
+
+            # reg = LinearRegression().fit(np.array([x]).T, y, sample_weight=weights)
+            # dummy_x = np.linspace(0, 60, 100)
+            # ax.plot(dummy_x, reg.predict(np.array([dummy_x]).T), c = "grey")
+
+            if drug_id == 0:
+                ax.set_title("{}".format(feature))
+
+            ax.tick_params(bottom=False, labelbottom=False)#, left=False, labelleft=False)          
+
+        axs[drug_id, 0].set_ylabel("Drug {} ({} recordings)".format(drug_id + 1, weights))
+        
+    figManager = plt.get_current_fig_manager()
+    figManager.window.showMaximized()
+    plt.show()
+
+# ---- [Group-level analysis] ANOVA between drug groups for each feature ----
+
+anova_per_feature = False
+
+if anova_per_feature:
+    for feature in all_recordings_df.columns:
 
         if feature in ['id', 'drug', 'time']:
             continue
 
-        y = []
-        x = []
-        weights = []
+        # fig, axs = plt.subplots(1, 2, constrained_layout=True)
+        # fig.suptitle(feature)
 
         for time in range(1, 3):
 
-            temp_df = df[df['time'] == time]
-            temp_y = temp_df[feature].values
-            # temp_y = quantile_bucket(temp_y, 10)
-            del temp_df
-            # y.append(np.mean(temp_y))
-            # x.append(time_dict[time])
+            y = []
+            x = []
 
-            y = np.concatenate((y, temp_y), axis=None)
-            x += [time_dict[time]] * len(temp_y)
+            for drug_id in range(1, 4):
 
-            weights.append(len(temp_y))
+                temp_df = all_recordings_df[all_recordings_df['time'] == time]
+                temp_df = temp_df[temp_df['drug'] == drug_id]
+                temp_y = temp_df[feature].values
+                del temp_df
+                y.append(temp_y)
+                x.append("Drug {}".format(drug_id))
 
-            # y.append(temp_y)
+            print("\nANOVA test between drug groups based on feature {} :".format(feature))
+            F, p = stats.f_oneway(y[0], y[1], y[2])
+            print("F = {} ; p = {}".format(np.round(F, 3), np.round(p, 3)))
 
-        ax = axs[drug_id, feature_id - 3]
+        #     ax = axs[time-1]
+        #     ax.axhline()
+        #     ax.boxplot(y)
+        #     ax.set_xticklabels(x)
+        #     ax.set_title("T{} - T0".format(time_dict[time]))
 
-        # ax.boxplot(y)
+        # plt.show()
 
-        ax.scatter(x, y, c = color_dict[drug_id])
-        ax.axhline()
-        ax.set_ylim(coord_dict[feature])
+# ---- [Group-level analysis] ANOVA between drug groups with all features after PCA ----
 
-        # reg = LinearRegression().fit(np.array([x]).T, y, sample_weight=weights)
-        # dummy_x = np.linspace(0, 60, 100)
-        # ax.plot(dummy_x, reg.predict(np.array([dummy_x]).T), c = "grey")
+anova_all_features = False
 
-        if drug_id == 0:
-            ax.set_title("{}".format(feature))
+if anova_all_features:
 
-        ax.tick_params(bottom=False, labelbottom=False)#, left=False, labelleft=False)          
+    df = deepcopy(all_recordings_df)
 
-    axs[drug_id, 0].set_ylabel("Drug {} ({} recordings)".format(drug_id + 1, weights))
-    
-figManager = plt.get_current_fig_manager()
-figManager.window.showMaximized()
-plt.show()
+    # Standardize features before PCA to account for different scales
+    scaler = StandardScaler()
+    X = df.drop(columns=['id', 'drug', 'time']).values
+    X = scaler.fit_transform(X)
 
-# ---- Normalize data with quantile bucketing ----
+    # Apply PCA to reduce dimensionality to 1
+    nb_pca_components = 1
+    pca = decomposition.PCA(n_components = nb_pca_components, random_state = 1)
+    X = pca.fit_transform(X)
+
+    # Perform ANOVA test between groups
+    reduced_df = pd.DataFrame({'drug':df['drug'].values, 'time':df['time'].values, 'value':X.flatten()})
+
+    all_times = False
+
+    if all_times:
+        # Drug groups
+        g1 = reduced_df[reduced_df['drug'] == 1]['value'].values
+        g2 = reduced_df[reduced_df['drug'] == 2]['value'].values
+        g3 = reduced_df[reduced_df['drug'] == 3]['value'].values
+
+        plt.figure()
+        plt.boxplot([g1, g2, g3])
+        plt.xlabel("Drug group")
+        plt.ylabel("First principal component from PCA")
+        plt.grid()
+
+        print("ANOVA test between drug groups (PCA-reduced features):")
+        F, p = stats.f_oneway(g1, g2, g3)
+        print(F, p)
+    else:
+        for time in [1, 2]:
+            # Drug groups by time
+            g1 = reduced_df[reduced_df['drug'] == 1][reduced_df['time'] == time]['value'].values
+            g2 = reduced_df[reduced_df['drug'] == 2][reduced_df['time'] == time]['value'].values
+            g3 = reduced_df[reduced_df['drug'] == 3][reduced_df['time'] == time]['value'].values
+
+            plt.figure()
+            plt.boxplot([g1, g2, g3])
+            plt.xlabel("Drug group")
+            plt.ylabel("First principal component from PCA")
+            plt.grid()
+
+            print("ANOVA test between drug groups (PCA-reduced features):")
+            F, p = stats.f_oneway(g1, g2, g3)
+            print(F, p)
+
+    plt.show()
+
+# ---- [Recording-level analysis] Define then count significant variations for each feature ----
+
+variation_count = True
+per_feature = False
+all_features = True
+
+if variation_count:
+
+    df_variation_counts = deepcopy(all_recordings_df.drop(columns=['id']))
+
+    for feature in df_variation_counts:
+        if feature in ['drug', 'time']:
+            continue
+
+        threshold = np.std(all_recordings_df[feature].values) / 10 # TODO: Hyperparameter
+        df_variation_counts[feature][df_variation_counts[feature] < -threshold] = -1
+        df_variation_counts[feature][(df_variation_counts[feature] >= -threshold) & (df_variation_counts[feature] <= threshold)] = 0
+        df_variation_counts[feature][df_variation_counts[feature] > threshold] = 1
+
+    if per_feature:
+        for drug_id in [1, 2, 3]:
+            for time_id in [1, 2]:
+                for feature in df_variation_counts:
+                    if feature in ['drug', 'time']:
+                        continue
+                    print("\nVariation counts for drug {} and time {}".format(drug_id, time_dict[time_id]))
+                    print(df_variation_counts[(df_variation_counts['drug'] == drug_id) & (df_variation_counts['time'] == time_id)][feature].value_counts())
+
+    if all_features:
+        print("\n")
+        print(df_variation_counts.groupby("drug").value_counts())
+
+# ---- Normalize data with quantile bucketing ---- TODO : DO NOT use if PCA is needed
 
 temp = []
 for feature in df.columns:
@@ -234,19 +348,8 @@ for feature in df.columns:
         continue
     feature_vector = df[feature].values
 
-    # # Visualize data distribution before
-    # plt.figure()
-    # plt.hist(feature_vector, bins=100)
-    # plt.title("Data distribution for feature : {}".format(feature))
-
     feature_vector = quantile_bucket(feature_vector, 10) # TODO : hyperparameter
     temp.append(feature_vector)
-
-    # # Visualize data distribution after
-    # plt.figure()
-    # plt.hist(feature_vector, bins=100)
-    # plt.title("Data distribution for feature : {}".format(feature))
-    # plt.show()
 
 X = np.column_stack(temp)
         
@@ -264,21 +367,6 @@ X = pca.transform(X)
 for i in range(nb_pca_components):
     print("PC {} in feature space: {}".format(i + 1, pca.components_[i]))
     print("Variance explained : {}".format(pca.explained_variance_[i]))
-
-# ---- One-way ANOVA to detect differences in features between DRUG groups ----
-
-# population = pd.DataFrame(X)
-# population = population.assign(drug=df['drug'].values)
-
-# # Groups
-# g1 = population[population['drug'] == 1]
-# g2 = population[population['drug'] == 2]
-# g3 = population[population['drug'] == 3]
-
-# for i in range(nb_pca_components):
-#     print("ANOVA test between drug groups based on principal component {} :".format(i + 1))
-#     F, p = stats.f_oneway(g1[i], g2[i], g3[i])
-#     print(F, p)
 
 # ---- Visualize the PCA-transformed data ---
 
