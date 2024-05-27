@@ -7,6 +7,7 @@ import numpy as np
 from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
 
 from utils.file_mgt import get_random_eeg_file_paths
 
@@ -27,6 +28,44 @@ def compute_mean_divided_by_std(epochs: mne.Epochs) -> float:
             temp.append(np.mean(x) / np.std(x))
 
     return np.mean(temp)
+
+
+def compute_number_of_significant_increases(epochs: mne.Epochs, show_plots : bool = False) -> int:
+    """
+    For each epoch and channel, fit a linear model to the signal.
+    If the slope of the fitted line is greater than a fixed fraction of the signal's standard deviation, the count of significant increases is incremented.
+    This count is returned.
+    """
+    X = epochs.times.reshape(-1, 1)
+    positive_count = 0
+    for event_id in range(epochs._data.shape[0]):
+        for channel_id in range(epochs._data[event_id].shape[0]): 
+            if channel_id > 14: # TODO: choose whether to include only oxy-Hb (Hbo) channels
+                break
+
+            y = epochs._data[event_id][channel_id]
+            reg = LinearRegression().fit(X, y)
+
+            std = np.std(y)
+            threshold = std / 50
+            color = 'r'
+            if reg.coef_[0] > threshold:
+                positive_count += 1
+                color = 'g'
+
+            if show_plots:
+                predictions = reg.predict(X)
+                plt.plot(X, y)
+                plt.plot(X, predictions, color=color)
+                plt.title("Fitted linear model\n(coefficients : {}, std : {}, threshold : {})".format(np.format_float_scientific(reg.coef_, precision=2),
+                                                                                                    np.format_float_scientific(std, precision=2),
+                                                                                                    np.format_float_scientific(threshold, precision=2)
+                                                                                                    ))
+                plt.xlabel("Time (s)")
+                plt.ylabel("hbo (M?)")
+                plt.show()
+
+    return positive_count
 
 
 paths = get_random_eeg_file_paths("snirf", 500)
@@ -125,6 +164,7 @@ for path in tqdm(paths):
     arithmetics_moderate_event_count = epochs_arithmetics_moderate.selection.shape[0]
     epochs_arithmetics_hard = epochs['Mental arithmetics hard']
     arithmetics_hard_event_count = epochs_arithmetics_hard.selection.shape[0]
+    channel_nb = len([ch_name for ch_name in epochs.ch_names if 'hbo' in ch_name])
     del epochs
     epochs_audio.crop(tmin=0, tmax=10)
     epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
@@ -132,15 +172,22 @@ for path in tqdm(paths):
 
     # ---- Compute features ----
 
-    # weighted by event counts
-    x = (audio_event_count * compute_mean_divided_by_std(epochs_audio)
-         + arithmetics_moderate_event_count * compute_mean_divided_by_std(epochs_arithmetics_moderate)
-         + arithmetics_hard_event_count * compute_mean_divided_by_std(epochs_arithmetics_hard)
-         ) / (audio_event_count
-              + arithmetics_moderate_event_count
-              + arithmetics_hard_event_count
-              )
-    features.append(x)
+    # # Mean / std (weighted by event counts)
+    # x = (audio_event_count * compute_mean_divided_by_std(epochs_audio)
+    #      + arithmetics_moderate_event_count * compute_mean_divided_by_std(epochs_arithmetics_moderate)
+    #      + arithmetics_hard_event_count * compute_mean_divided_by_std(epochs_arithmetics_hard)
+    #      ) / (audio_event_count
+    #           + arithmetics_moderate_event_count
+    #           + arithmetics_hard_event_count
+    #           )
+    # features.append(x)
+
+    # Number of activations
+    c = 0
+    for e in [epochs_audio, epochs_arithmetics_moderate, epochs_arithmetics_hard]:
+        c += compute_number_of_significant_increases(e)
+    c /= (audio_event_count + arithmetics_moderate_event_count + arithmetics_hard_event_count) * channel_nb
+    features.append(c)
 
     # ---- Save to data structure ----
 

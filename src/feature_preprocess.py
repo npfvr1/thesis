@@ -339,6 +339,7 @@ if variation_count:
     if all_features:
         print("\n")
         print(df_variation_counts.groupby("drug").value_counts())
+        df_variation_counts.to_excel("test.xlsx")
 
 # ---- Normalize data with quantile bucketing ---- TODO : DO NOT use if PCA is needed
 
