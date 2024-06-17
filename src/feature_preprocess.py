@@ -1,5 +1,7 @@
 import os
 from copy import deepcopy
+import warnings
+warnings.filterwarnings("ignore")
 
 import pandas as pd
 import numpy as np
@@ -8,6 +10,8 @@ import scipy.stats as stats
 from sklearn import decomposition, preprocessing
 from sklearn.preprocessing import StandardScaler
 from matplotlib.colors import ListedColormap
+from statsmodels.stats.anova import AnovaRM
+import statsmodels.formula.api as smf
 
 
 def quantile_bucket(data, buckets):
@@ -214,34 +218,72 @@ if group_level:
 
 # ---- [Group-level analysis] ANOVA between drug groups for each feature ----
 
-anova_per_feature = False
+anova_per_feature = True
 
 if anova_per_feature:
-    for feature in all_recordings_df.columns:
 
-        if feature in ['id', 'drug', 'time']:
-            continue
+    # Correcting the unbalance across drug groups
+    unbalanced_ids = [id for id in set(all_recordings_df['id'].values)
+                        if (id not in all_recordings_df[all_recordings_df['drug'] == 1]['id'].values)
+                        or (id not in all_recordings_df[all_recordings_df['drug'] == 2]['id'].values)
+                        or (id not in all_recordings_df[all_recordings_df['drug'] == 3]['id'].values)]
 
+    balanced_df = all_recordings_df[~all_recordings_df['id'].isin(unbalanced_ids)]
+
+    for time_id in [1, 2]:
+
+        df = balanced_df[balanced_df['time'] == time_id]
+
+        # Correcting the unbalance across recording times
+        unbalanced_ids = [id for id in set(balanced_df['id'].values)
+                            if (id not in balanced_df[balanced_df['time'] == time_id]['id'].values)]
+
+        df = balanced_df[~balanced_df['id'].isin(unbalanced_ids)]
+
+        for feature in df.columns:
+
+            if feature in ['id', 'drug', 'time']:
+                continue
+
+            temp_df = df.drop(columns=[c for c in df.columns if c not in ['id', 'drug', feature]])
+            temp_df.drop_duplicates(subset=['id', 'drug'], inplace=True)
+            
+            # Standardize feature
+            scaler = StandardScaler()
+            X = np.atleast_2d(temp_df[feature].values).T
+            temp_df[feature] = scaler.fit_transform(X)
+
+            print("\nSize of the dataset used for ANOVA RM by drug group, for feature {} and time T{}".format(feature, time_dict[time_id]))
+            print("Drug 1 : {}".format(temp_df[temp_df['drug'] == 1].shape[0]))
+            print("Drug 2 : {}".format(temp_df[temp_df['drug'] == 2].shape[0]))
+            print("Drug 3 : {}\n".format(temp_df[temp_df['drug'] == 3].shape[0]))
+
+            print(AnovaRM(data=temp_df,
+                        depvar=feature,
+                        subject='id',
+                        within=['drug']).fit())
+        
         # fig, axs = plt.subplots(1, 2, constrained_layout=True)
         # fig.suptitle(feature)
 
-        for time in range(1, 3):
+        # for time in range(1, 3):
 
-            y = []
-            x = []
+        #     y = []
+        #     x = []
 
-            for drug_id in range(1, 4):
+        #     for drug_id in range(1, 4):
 
-                temp_df = all_recordings_df[all_recordings_df['time'] == time]
-                temp_df = temp_df[temp_df['drug'] == drug_id]
-                temp_y = temp_df[feature].values
-                del temp_df
-                y.append(temp_y)
-                x.append("Drug {}".format(drug_id))
+        #         temp_df = all_recordings_df[all_recordings_df['time'] == time]
+        #         temp_df = temp_df[temp_df['drug'] == drug_id]
+        #         temp_y = temp_df[feature].values
+        #         del temp_df
+        #         y.append(temp_y)
+        #         x.append("Drug {}".format(drug_id))
 
-            print("\nANOVA test between drug groups based on feature {} :".format(feature))
-            F, p = stats.f_oneway(y[0], y[1], y[2])
-            print("F = {} ; p = {}".format(np.round(F, 3), np.round(p, 3)))
+        #     print("\nANOVA test between drug groups based on feature {} :".format(feature))
+        #     F, p = stats.f_oneway(y[0], y[1], y[2])
+        #     print("F = {} ; p = {}".format(np.round(F, 3), np.round(p, 3)))
+
 
         #     ax = axs[time-1]
         #     ax.axhline()
@@ -308,6 +350,27 @@ if anova_all_features:
 
     plt.show()
 
+# ---- [Group-level analysis] Mixed linear model between drug groups for each recording time and feature ----
+
+mlm = True
+
+if mlm:
+
+    for time_id in [1, 2]:
+
+        df = all_recordings_df[all_recordings_df['time'] == time_id]
+
+        for feature in df.columns:
+
+            if feature in ['id', 'drug', 'time']:
+                continue
+
+            temp_df = df.drop(columns=[c for c in df.columns if c not in ['id', 'drug', feature]])
+
+            md = smf.mixedlm("{} ~ drug".format(feature), temp_df, groups="drug")
+            mdf = md.fit()
+            print("\n\nFeature : {} - Time : {}\n\n".format(feature, time_id), mdf.summary(), "\n\n\n\n")
+
 # ---- [Recording-level analysis] Define then count significant variations for each feature ----
 
 variation_count = True
@@ -322,7 +385,7 @@ if variation_count:
         if feature in ['drug', 'time']:
             continue
 
-        threshold = np.std(all_recordings_df[feature].values) / 10 # TODO: Hyperparameter
+        threshold = np.std(all_recordings_df[feature].values) / 20 # TODO: Hyperparameter
         df_variation_counts[feature][df_variation_counts[feature] < -threshold] = -1
         df_variation_counts[feature][(df_variation_counts[feature] >= -threshold) & (df_variation_counts[feature] <= threshold)] = 0
         df_variation_counts[feature][df_variation_counts[feature] > threshold] = 1

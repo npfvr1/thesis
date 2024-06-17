@@ -185,6 +185,7 @@ def main():
         # ---- Filtering ----
 
         filter_raw(raw)
+        raw.plot(block=True)
 
         # ---- Epoch ----
 
@@ -202,7 +203,7 @@ def main():
         logging.info("{} epoch(s) were dropped by Autoreject".format(event_count - len(epochs.selection)))
         stats["bad_epochs"].append(event_count - len(epochs.selection))
         if (
-            set(epochs.selection).intersection([0, 1, 2]) == set() or
+            # set(epochs.selection).intersection([0, 1, 2]) == set() or # we won't use the passive paradigm
             set(epochs.selection).intersection([3, 4, 5, 6, 7]) == set() or
             set(epochs.selection).intersection([8, 9, 10, 11, 12]) == set()
         ):
@@ -217,13 +218,15 @@ def main():
 
     logging.info("Number of successfully cleaned recordings: {} ({}%)".format(stats["successes"], (stats["successes"]/len(paths)*100)))
 
-    total = np.sum(np.array(stats["bad_channels"]))
+    number = len([e for e in stats["bad_channels"] if e > 0])
     average = np.mean(np.array(stats["bad_channels"]))
-    logging.info("Number of bad channels:\nTotal: {}\nAverage: {}".format(total, average))
+    logging.info("Number of recordings with bad channels: {}".format(number))
+    logging.info("Average number of bad channels (for all recordings): {}".format(average))
 
-    total = np.sum(np.array(stats["bad_epochs"]))
+    number = len([e for e in stats["bad_epochs"] if e > 0])
     average = np.mean(np.array(stats["bad_epochs"]))
-    logging.info("Number of bad epochs:\nTotal: {}\nAverage: {}".format(total, average))
+    logging.info("Number of recordings with bad epochs: {}".format(number))
+    logging.info("Average number of bad epochs (for all recordings): {}".format(average))
 
 
 if __name__ == "__main__":

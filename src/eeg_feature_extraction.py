@@ -108,20 +108,20 @@ def main():
         
         # ---- Split by event type ----
 
-        epochs_audio = epochs['Audio']
-        audio_event_count = epochs_audio.selection.shape[0]
+        # epochs_audio = epochs['Audio']
+        # audio_event_count = epochs_audio.selection.shape[0]
         epochs_arithmetics_moderate = epochs['Mental arithmetics moderate']
         arithmetics_moderate_event_count = epochs_arithmetics_moderate.selection.shape[0]
         epochs_arithmetics_hard = epochs['Mental arithmetics hard']
         arithmetics_hard_event_count = epochs_arithmetics_hard.selection.shape[0]
         del epochs
-        epochs_audio.crop(tmin=0, tmax=10)
+        # epochs_audio.crop(tmin=0, tmax=10)
         epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
         epochs_arithmetics_hard.crop(tmin=0, tmax=25)
 
         # ---- Brain wave band power ----
 
-        powers_audio = compute_brain_wave_band_power(epochs_audio)
+        # powers_audio = compute_brain_wave_band_power(epochs_audio)
         powers_arithmetics_moderate = compute_brain_wave_band_power(epochs_arithmetics_moderate)
         powers_arithmetics_hard = compute_brain_wave_band_power(epochs_arithmetics_hard)
 
@@ -129,11 +129,16 @@ def main():
 
         for i in range(5):
             # weighted mean of powers (weighted by even counts)
-            temp_power = (audio_event_count * powers_audio[i]
-                          + arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
+            # temp_power = (audio_event_count * powers_audio[i]
+            #               + arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
+            #               + arithmetics_hard_event_count * powers_arithmetics_hard[i]
+            #               ) / (audio_event_count
+            #                    + arithmetics_moderate_event_count
+            #                    + arithmetics_hard_event_count
+            #                    )
+            temp_power = (arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
                           + arithmetics_hard_event_count * powers_arithmetics_hard[i]
-                          ) / (audio_event_count
-                               + arithmetics_moderate_event_count
+                          ) / (arithmetics_moderate_event_count
                                + arithmetics_hard_event_count
                                )
             powers.append(temp_power)
@@ -142,7 +147,7 @@ def main():
 
         # ---- Entropy and nonlinear features ----
 
-        entropies_audio = compute_entropy_features(epochs_audio)
+        # entropies_audio = compute_entropy_features(epochs_audio)
         entropies_arithmetics_moderate = compute_entropy_features(epochs_arithmetics_moderate)
         entropies_arithmetics_hard = compute_entropy_features(epochs_arithmetics_hard)
 
@@ -150,11 +155,16 @@ def main():
 
         for i in range(3):
             # weighted mean of complexity measures (weighted by even counts)
-            temp_complexity = (audio_event_count * entropies_audio[i]
-                          + arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
+            # temp_complexity = (audio_event_count * entropies_audio[i]
+            #               + arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
+            #               + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
+            #               ) / (audio_event_count
+            #                    + arithmetics_moderate_event_count
+            #                    + arithmetics_hard_event_count
+            #                    )
+            temp_complexity = (arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
                           + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
-                          ) / (audio_event_count
-                               + arithmetics_moderate_event_count
+                          ) / (arithmetics_moderate_event_count
                                + arithmetics_hard_event_count
                                )
             complexities.append(temp_complexity)

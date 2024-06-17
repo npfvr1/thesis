@@ -68,6 +68,25 @@ def compute_number_of_significant_increases(epochs: mne.Epochs, show_plots : boo
     return positive_count
 
 
+def compute_average_slope(epochs: mne.Epochs) -> float:
+    """
+    For each epoch and channel, fit a linear model to the signal.
+    Returns the average slope.
+    """
+    X = epochs.times.reshape(-1, 1)
+    slopes = []
+    for event_id in range(epochs._data.shape[0]):
+        for channel_id in range(epochs._data[event_id].shape[0]): 
+            if channel_id > 14: # include only oxy-Hb (Hbo) channels
+                break
+
+            y = epochs._data[event_id][channel_id]
+            reg = LinearRegression().fit(X, y)
+            slopes.append(reg.coef_[0])
+
+    return np.mean(np.array(slopes))
+
+
 paths = get_random_eeg_file_paths("snirf", 500)
 feature_list = []
 
@@ -158,15 +177,15 @@ for path in tqdm(paths):
         
     # ---- Split by event type ----
 
-    epochs_audio = epochs['Audio']
-    audio_event_count = epochs_audio.selection.shape[0]
+    # epochs_audio = epochs['Audio']
+    # audio_event_count = epochs_audio.selection.shape[0]
     epochs_arithmetics_moderate = epochs['Mental arithmetics moderate']
     arithmetics_moderate_event_count = epochs_arithmetics_moderate.selection.shape[0]
     epochs_arithmetics_hard = epochs['Mental arithmetics hard']
     arithmetics_hard_event_count = epochs_arithmetics_hard.selection.shape[0]
     channel_nb = len([ch_name for ch_name in epochs.ch_names if 'hbo' in ch_name])
     del epochs
-    epochs_audio.crop(tmin=0, tmax=10)
+    # epochs_audio.crop(tmin=0, tmax=10)
     epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
     epochs_arithmetics_hard.crop(tmin=0, tmax=25)
 
@@ -182,12 +201,19 @@ for path in tqdm(paths):
     #           )
     # features.append(x)
 
-    # Number of activations
-    c = 0
-    for e in [epochs_audio, epochs_arithmetics_moderate, epochs_arithmetics_hard]:
-        c += compute_number_of_significant_increases(e)
-    c /= (audio_event_count + arithmetics_moderate_event_count + arithmetics_hard_event_count) * channel_nb
-    features.append(c)
+    # # Number of activations
+    # c = 0
+    # for e in [epochs_audio, epochs_arithmetics_moderate, epochs_arithmetics_hard]:
+    #     c += compute_number_of_significant_increases(e)
+    # c /= (audio_event_count + arithmetics_moderate_event_count + arithmetics_hard_event_count) * channel_nb
+    # features.append(c)
+
+    # Average slope
+    s = (
+        compute_average_slope(epochs_arithmetics_moderate)
+        + compute_average_slope(epochs_arithmetics_hard)
+        ) / 2
+    features.append(s)
 
     # ---- Save to data structure ----
 
