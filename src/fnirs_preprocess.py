@@ -68,21 +68,29 @@ def compute_number_of_significant_increases(epochs: mne.Epochs, show_plots : boo
     return positive_count
 
 
-def compute_average_slope(epochs: mne.Epochs) -> float:
+def compute_average_slope(epochs: mne.Epochs, show_plots : bool = False) -> float:
     """
     For each epoch and channel, fit a linear model to the signal.
     Returns the average slope.
     """
     X = epochs.times.reshape(-1, 1)
+    epochs = epochs.drop_channels(ch_names = [e for e in epochs.ch_names if 'hbr' in e], on_missing='raise') # include only oxy-Hb (Hbo) channels
     slopes = []
     for event_id in range(epochs._data.shape[0]):
-        for channel_id in range(epochs._data[event_id].shape[0]): 
-            if channel_id > 14: # include only oxy-Hb (Hbo) channels
-                break
-
+        for channel_id in range(epochs._data[event_id].shape[0]):
             y = epochs._data[event_id][channel_id]
             reg = LinearRegression().fit(X, y)
             slopes.append(reg.coef_[0])
+
+            if show_plots:
+                print("event number {}".format(event_id))
+                print("channel number {}".format(channel_id))
+                predictions = reg.predict(X)
+                plt.plot(X, y)
+                plt.plot(X, predictions, color='g')
+                plt.xlabel("Time (s)")
+                plt.ylabel("hbo (M?)")
+                plt.show()
 
     return np.mean(np.array(slopes))
 
@@ -149,8 +157,8 @@ for path in tqdm(paths):
         print("This recording is missing at least one event. Skipping to the next one.")
         continue
     events[0:3,2] = 0
-    events[3:9,2] = 1
-    events[9:13,2] = 2
+    events[3:8,2] = 1
+    events[8:13,2] = 2
     event_dict = {"Audio":0,
                   "Mental arithmetics moderate":1,
                   "Mental arithmetics hard":2
@@ -186,7 +194,7 @@ for path in tqdm(paths):
     channel_nb = len([ch_name for ch_name in epochs.ch_names if 'hbo' in ch_name])
     del epochs
     # epochs_audio.crop(tmin=0, tmax=10)
-    epochs_arithmetics_moderate.crop(tmin=0, tmax=25)
+    epochs_arithmetics_moderate.crop(tmin=0, tmax=25) # Discard the baseline period
     epochs_arithmetics_hard.crop(tmin=0, tmax=25)
 
     # ---- Compute features ----

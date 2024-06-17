@@ -34,7 +34,8 @@ def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, flo
         df = bandpower(data = epochs_data[epoch_id] * 1e6,
                        sf = float(epochs._raw_sfreq[0]),
                        ch_names = epochs.ch_names,
-                       relative = True)
+                       relative = True,
+                       bands = [(0, 4, "Delta"), (4, 8, "Theta"), (8, 13, "Alpha"), (12, 16, "Sigma"), (16, 30, "Beta"), (30, 40, "Gamma")],)
 
         delta_power += np.mean(df[['Delta']].values)
         theta_power += np.mean(df[['Theta']].values)
