@@ -5,9 +5,9 @@ import time
 import mne
 from tqdm import tqdm
 import pandas as pd
-import antropy
 from yasa import bandpower
 import numpy as np
+import antropy
 
 from utils.file_mgt import *
 
@@ -17,17 +17,15 @@ Extracts features and saves them in a .csv file.
 """
 
 
-def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, float, float, float]:
+def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, float]:
     """
-    Computes the relative band power averaged across channels and epochs, for Delta, Theta, Alpha, Sigma, and Beta frequency bands.
+    Computes the relative band power averaged across channels and epochs, for Delta, Theta, and Alpha frequency bands.
     """
     delta_power = 0
     theta_power = 0
     alpha_power = 0
-    sigma_power = 0
-    beta_power = 0
 
-    epochs_data = epochs.get_data()
+    epochs_data = epochs.get_data(copy=False)
 
     for epoch_id in range(epochs_data.shape[0]):
 
@@ -35,50 +33,42 @@ def compute_brain_wave_band_power(epochs: mne.Epochs) -> tuple[float, float, flo
                        sf = float(epochs._raw_sfreq[0]),
                        ch_names = epochs.ch_names,
                        relative = True,
-                       bands = [(0, 4, "Delta"), (4, 8, "Theta"), (8, 13, "Alpha"), (12, 16, "Sigma"), (16, 30, "Beta"), (30, 40, "Gamma")],)
+                       bands = [(0.5, 4, "Delta"), (4, 8, "Theta"), (8, 13, "Alpha")] # Lower delta bound is 0.5 Hz so we use a 4s sliding window (default param)
+                       )
 
         delta_power += np.mean(df[['Delta']].values)
         theta_power += np.mean(df[['Theta']].values)
         alpha_power += np.mean(df[['Alpha']].values)
-        sigma_power += np.mean(df[['Sigma']].values)
-        beta_power += np.mean(df[['Beta']].values)
         del df
 
     delta_power /= epochs_data.shape[0]
     theta_power /= epochs_data.shape[0]
     alpha_power /= epochs_data.shape[0]
-    sigma_power /= epochs_data.shape[0]
-    beta_power /= epochs_data.shape[0]
 
-    return (delta_power, theta_power, alpha_power, sigma_power, beta_power)
+    return (delta_power, theta_power, alpha_power)
 
 
-def compute_entropy_features(epochs: mne.Epochs) -> tuple[float, float, float]:
+def compute_entropies(epochs: mne.Epochs) -> tuple[float, float]:
     """
-    Computes three complexity features (spectral and permutation entropies, and zero crossings) averaged across channels and across epochs.
+    Computes the permutation and spectral entropies averaged across channels and across epochs.
     """
-    se = 0
     pe = 0
-    zc = 0
-    
-    epochs_data = epochs.get_data()
+    se = 0
+    epochs_data = epochs.get_data(copy=False)
     
     for epoch_id in range(epochs_data.shape[0]):
         for channel_id in range(epochs_data.shape[1]):
             x = epochs_data[epoch_id][channel_id]
+            pe += antropy.perm_entropy(x, normalize=True)
             se += antropy.spectral_entropy(x, sf = epochs.info['sfreq'], method = 'welch', normalize = True)
-            pe += antropy.perm_entropy(x, normalize = True)
-            zc += antropy.num_zerocross(x, normalize = True)
 
-    se /= epochs_data.shape[1]
     pe /= epochs_data.shape[1]
-    zc /= epochs_data.shape[1]
+    se /= epochs_data.shape[1]
 
-    se /= epochs_data.shape[0]
     pe /= epochs_data.shape[0]
-    zc /= epochs_data.shape[0]
+    se /= epochs_data.shape[0]
 
-    return (se, pe, zc)
+    return (pe, se)
 
 
 def main():
@@ -128,65 +118,43 @@ def main():
 
         powers = []
 
-        for i in range(5):
-            # weighted mean of powers (weighted by even counts)
-            # temp_power = (audio_event_count * powers_audio[i]
-            #               + arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
-            #               + arithmetics_hard_event_count * powers_arithmetics_hard[i]
-            #               ) / (audio_event_count
-            #                    + arithmetics_moderate_event_count
-            #                    + arithmetics_hard_event_count
-            #                    )
-            temp_power = (arithmetics_moderate_event_count * powers_arithmetics_moderate[i]
-                          + arithmetics_hard_event_count * powers_arithmetics_hard[i]
-                          ) / (arithmetics_moderate_event_count
-                               + arithmetics_hard_event_count
-                               )
+        # Weighted average (by event count)
+        for i in range(3):
+            temp_power = np.average([powers_arithmetics_moderate[i],
+                                     powers_arithmetics_hard[i]],
+                                     weights=[arithmetics_moderate_event_count, arithmetics_hard_event_count])
             powers.append(temp_power)
+
+        # Alpha / delta
+        powers.append(powers[2] / powers[0])
 
         features += powers
 
-        # ---- Entropy and nonlinear features ----
+        # ---- Entropies ----
 
         # entropies_audio = compute_entropy_features(epochs_audio)
-        entropies_arithmetics_moderate = compute_entropy_features(epochs_arithmetics_moderate)
-        entropies_arithmetics_hard = compute_entropy_features(epochs_arithmetics_hard)
+        entropies_arithmetics_moderate = compute_entropies(epochs_arithmetics_moderate)
+        entropies_arithmetics_hard = compute_entropies(epochs_arithmetics_hard)
 
-        complexities = []
+        entropies = []
 
-        for i in range(3):
-            # weighted mean of complexity measures (weighted by even counts)
-            # temp_complexity = (audio_event_count * entropies_audio[i]
-            #               + arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
-            #               + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
-            #               ) / (audio_event_count
-            #                    + arithmetics_moderate_event_count
-            #                    + arithmetics_hard_event_count
-            #                    )
-            temp_complexity = (arithmetics_moderate_event_count * entropies_arithmetics_moderate[i]
-                          + arithmetics_hard_event_count * entropies_arithmetics_hard[i]
-                          ) / (arithmetics_moderate_event_count
-                               + arithmetics_hard_event_count
-                               )
-            complexities.append(temp_complexity)
+        # Weighted average (by event count)
+        for i in range(2):
+            temp_entropy = np.average([entropies_arithmetics_moderate[i],
+                                     entropies_arithmetics_hard[i]],
+                                     weights=[arithmetics_moderate_event_count, arithmetics_hard_event_count])
+            entropies.append(temp_entropy)
 
-        features += complexities
-
-        # ---- AR process coefficients ----
-
-        # for channel_index in range(evoked_audio.data.shape[0]):
-        #     data = evoked_audio.data[channel_index]
-        #     ar_coefficients, _ = sm.regression.yule_walker(data, order=10, method="mle") # TODO : hyperparameter (AR model order)
-        #     features.extend(ar_coefficients[:5]) # TODO : hyperparameter (number of coefficients to keep)
+        features += entropies
 
         # ---- Save to data structure ----
 
-        assert len(features) == 11
+        assert len(features) == 9
         feature_list.append(features)
     
     # ---- Save to file ----
 
-    df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'delta', 'theta', 'alpha', 'sigma', 'beta', 'se', 'pe', 'zc'])
+    df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'delta', 'theta', 'alpha', 'ratio', 'pe', 'se'])
     df.to_csv(os.path.join("data", "processed", "eeg_features.csv"), index = False)
 
 

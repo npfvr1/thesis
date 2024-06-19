@@ -7,11 +7,12 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
+import seaborn as sns
+import statsmodels.formula.api as smf
 from sklearn import decomposition, preprocessing
 from sklearn.preprocessing import StandardScaler
 from matplotlib.colors import ListedColormap
 from statsmodels.stats.anova import AnovaRM
-import statsmodels.formula.api as smf
 
 
 def quantile_bucket(data, buckets):
@@ -43,7 +44,7 @@ del df_eeg, df_pupillometry, df_fnirs
 
 # ---- [Data preparation] Substract baseline from corresponding post administration 1 and 2 ----
 
-substract_baseline = True
+substract_baseline = False
 use_median_baseline = False
 
 if substract_baseline:
@@ -72,11 +73,24 @@ if substract_baseline:
                     df.loc[index,df.columns.values[3:]] = [np.nan] * len(median_baseline)
 
     df = pd.concat([only_post_one_df, only_post_two_df])
+    del only_baseline_df, only_post_one_df, only_post_two_df
         
 df = df.dropna()
 print("Number of data points: {}".format(len(df)))
 
 # ---- Visualizations ----
+
+i = 0
+for feature in df.columns:
+    if feature in ['id', 'drug', 'time']:
+        continue
+
+    plt.figure(figsize=(8, 6))
+    sns.violinplot(data=df, x="drug", y=feature, hue="time", palette='pastel')
+    plt.xlabel("")
+    plt.title("Distribution of the relative alpha band power (averaged)")
+    plt.ylabel("Averaged relative power (%)")
+plt.show()
 
 drug_one_df = df[df['drug'] == 1]
 drug_two_df = df[df['drug'] == 2]
