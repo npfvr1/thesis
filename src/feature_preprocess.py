@@ -44,7 +44,7 @@ del df_eeg, df_pupillometry, df_fnirs
 
 # ---- [Data preparation] Substract baseline from corresponding post administration 1 and 2 ----
 
-substract_baseline = False
+substract_baseline = True
 use_median_baseline = False
 
 if substract_baseline:
@@ -78,157 +78,176 @@ if substract_baseline:
 df = df.dropna()
 print("Number of data points: {}".format(len(df)))
 
+normalize = True
+
+if normalize:
+    ss = StandardScaler()
+    for feature in df.columns:
+        if feature in ['id', 'drug', 'time']:
+            continue
+        df[feature] = ss.fit_transform(df[feature].values.reshape(-1, 1))
+
+df.to_excel(os.path.join("data", "processed", "lmm_data.xlsx"), index=False)
+
+
 # ---- Visualizations ----
 
-i = 0
-for feature in df.columns:
-    if feature in ['id', 'drug', 'time']:
-        continue
+violin_plots = True
 
-    plt.figure(figsize=(8, 6))
-    sns.violinplot(data=df, x="drug", y=feature, hue="time", palette='pastel')
-    plt.xlabel("")
-    plt.title("Distribution of the relative alpha band power (averaged)")
-    plt.ylabel("Averaged relative power (%)")
-plt.show()
+if violin_plots:
+    i = 0
+    for feature in df.columns:
+        if feature in ['id', 'drug', 'time']:
+            continue
 
-drug_one_df = df[df['drug'] == 1]
-drug_two_df = df[df['drug'] == 2]
-drug_three_df = df[df['drug'] == 3]
-c = len(df.columns) - 3
-del df
-all_recordings_df = pd.concat([drug_one_df, drug_two_df, drug_three_df])
+        plt.figure(figsize=(8, 6))
+        sns.violinplot(data=df, x="drug", y=feature, hue="time", palette='pastel')
+        plt.xlabel("")
+        # plt.title("Distribution of the relative alpha band power (averaged)")
+        plt.ylabel("Averaged relative power (%)")
+    plt.show()
 
-time_dict = {0:0, 1:15, 2:60}
-color_dict = {0:"red", 1:"green", 2:"blue"}
-coord_dict = {"delta":[-0.26, 0.26],
-              "theta":[-0.16,0.16],
-              "alpha":[-0.08,0.08],
-              "sigma":[-0.045,0.045],
-              "beta":[-0.12,0.12],
-              "se":[-0.18,0.18],
-              "pe":[-0.07,0.07],
-              "zc":[-0.13,0.13],
-              "pupillometry_score":[-2.5,2.5],
-              "fnirs_1":[-1.01, 1.01]
-              }
-results = {0:{1:{},
-              2:{}
-              },
-           1:{1:{},
-              2:{}
-              },
-           2:{1:{},
-              2:{}
-              }
-           }
-for feature in all_recordings_df.columns:
-    for i in range(3):
-        for j in range(1, 3):
-            results[i][j][feature] = {"positive":0, "total":0}
+exit()
+old_vizs = False
 
-patient_level = False
+if old_vizs:
+    drug_one_df = df[df['drug'] == 1]
+    drug_two_df = df[df['drug'] == 2]
+    drug_three_df = df[df['drug'] == 3]
+    c = len(df.columns) - 3
+    del df
+    all_recordings_df = pd.concat([drug_one_df, drug_two_df, drug_three_df])
 
-if patient_level:
-    for patient_id in all_recordings_df['id'].unique():
+    time_dict = {0:0, 1:15, 2:60}
+    color_dict = {0:"red", 1:"green", 2:"blue"}
+    coord_dict = {"delta":[-0.26, 0.26],
+                "theta":[-0.16,0.16],
+                "alpha":[-0.08,0.08],
+                "sigma":[-0.045,0.045],
+                "beta":[-0.12,0.12],
+                "se":[-0.18,0.18],
+                "pe":[-0.07,0.07],
+                "zc":[-0.13,0.13],
+                "pupillometry_score":[-2.5,2.5],
+                "fnirs_1":[-1.01, 1.01]
+                }
+    results = {0:{1:{},
+                2:{}
+                },
+            1:{1:{},
+                2:{}
+                },
+            2:{1:{},
+                2:{}
+                }
+            }
+    for feature in all_recordings_df.columns:
+        for i in range(3):
+            for j in range(1, 3):
+                results[i][j][feature] = {"positive":0, "total":0}
+
+    patient_level = False
+
+    if patient_level:
+        for patient_id in all_recordings_df['id'].unique():
+            fig, axs = plt.subplots(3, c, constrained_layout=True)
+            fig.suptitle("Patient number {}".format(patient_id))
+            print("Patient number {}".format(patient_id))
+
+            df = all_recordings_df[all_recordings_df['id'] == patient_id]
+
+            for drug_id in range(3):
+
+                for feature_id, feature in enumerate(all_recordings_df.columns):
+
+                    if feature in ['id', 'drug', 'time']:
+                        continue
+
+                    y = []
+                    x = []
+
+                    for time in range(1, 3):
+
+                        temp_df = df[df['time'] == time]
+                        temp_df = temp_df[temp_df['drug'] == (drug_id + 1)]
+                        temp_y = temp_df[feature].values
+                        if len(temp_y) > 0:
+                            results[drug_id][time][feature]["total"] += 1
+                            results[drug_id][time][feature]["positive"] += int(temp_y[0] > 0)
+                        del temp_df
+                        y.append(np.mean(temp_y))
+                        x.append(time_dict[time])
+
+                    ax = axs[drug_id, feature_id - 3]
+                    ax.scatter(x, y, c = color_dict[drug_id])
+                    ax.axhline()
+                    ax.set_ylim(coord_dict[feature])
+
+                    if drug_id == 0:
+                        ax.set_title("{}".format(feature))
+
+                    ax.tick_params(bottom=False)          
+
+                axs[drug_id, 0].set_ylabel("Drug {}".format(drug_id + 1))
+
+            figManager = plt.get_current_fig_manager()
+            figManager.window.showMaximized()
+            plt.show()
+
+    group_level = False
+
+    if group_level:
         fig, axs = plt.subplots(3, c, constrained_layout=True)
-        fig.suptitle("Patient number {}".format(patient_id))
-        print("Patient number {}".format(patient_id))
 
-        df = all_recordings_df[all_recordings_df['id'] == patient_id]
+        for drug_id, df in enumerate([drug_one_df, drug_two_df, drug_three_df]):
 
-        for drug_id in range(3):
-
-            for feature_id, feature in enumerate(all_recordings_df.columns):
+            for feature_id, feature in enumerate(df.columns):
 
                 if feature in ['id', 'drug', 'time']:
                     continue
 
                 y = []
                 x = []
+                weights = []
 
                 for time in range(1, 3):
 
                     temp_df = df[df['time'] == time]
-                    temp_df = temp_df[temp_df['drug'] == (drug_id + 1)]
                     temp_y = temp_df[feature].values
-                    if len(temp_y) > 0:
-                        results[drug_id][time][feature]["total"] += 1
-                        results[drug_id][time][feature]["positive"] += int(temp_y[0] > 0)
+                    # temp_y = quantile_bucket(temp_y, 10)
                     del temp_df
                     y.append(np.mean(temp_y))
                     x.append(time_dict[time])
 
+                    # y = np.concatenate((y, temp_y), axis=None)
+                    # x += [time_dict[time]] * len(temp_y)
+
+                    weights.append(len(temp_y))
+
+                    # y.append(temp_y)
+
                 ax = axs[drug_id, feature_id - 3]
+
+                # ax.boxplot(y)
+
                 ax.scatter(x, y, c = color_dict[drug_id])
-                ax.axhline()
+                # ax.axhline() # horizontal line at y = 0 by default
                 ax.set_ylim(coord_dict[feature])
+
+                # reg = LinearRegression().fit(np.array([x]).T, y, sample_weight=weights)
+                # dummy_x = np.linspace(0, 60, 100)
+                # ax.plot(dummy_x, reg.predict(np.array([dummy_x]).T), c = "grey")
 
                 if drug_id == 0:
                     ax.set_title("{}".format(feature))
 
-                ax.tick_params(bottom=False)          
+                ax.tick_params(bottom=False, labelbottom=False)#, left=False, labelleft=False)          
 
-            axs[drug_id, 0].set_ylabel("Drug {}".format(drug_id + 1))
-
+            axs[drug_id, 0].set_ylabel("Drug {} ({} recordings)".format(drug_id + 1, weights))
+            
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
         plt.show()
-
-group_level = False
-
-if group_level:
-    fig, axs = plt.subplots(3, c, constrained_layout=True)
-
-    for drug_id, df in enumerate([drug_one_df, drug_two_df, drug_three_df]):
-
-        for feature_id, feature in enumerate(df.columns):
-
-            if feature in ['id', 'drug', 'time']:
-                continue
-
-            y = []
-            x = []
-            weights = []
-
-            for time in range(1, 3):
-
-                temp_df = df[df['time'] == time]
-                temp_y = temp_df[feature].values
-                # temp_y = quantile_bucket(temp_y, 10)
-                del temp_df
-                y.append(np.mean(temp_y))
-                x.append(time_dict[time])
-
-                # y = np.concatenate((y, temp_y), axis=None)
-                # x += [time_dict[time]] * len(temp_y)
-
-                weights.append(len(temp_y))
-
-                # y.append(temp_y)
-
-            ax = axs[drug_id, feature_id - 3]
-
-            # ax.boxplot(y)
-
-            ax.scatter(x, y, c = color_dict[drug_id])
-            # ax.axhline() # horizontal line at y = 0 by default
-            ax.set_ylim(coord_dict[feature])
-
-            # reg = LinearRegression().fit(np.array([x]).T, y, sample_weight=weights)
-            # dummy_x = np.linspace(0, 60, 100)
-            # ax.plot(dummy_x, reg.predict(np.array([dummy_x]).T), c = "grey")
-
-            if drug_id == 0:
-                ax.set_title("{}".format(feature))
-
-            ax.tick_params(bottom=False, labelbottom=False)#, left=False, labelleft=False)          
-
-        axs[drug_id, 0].set_ylabel("Drug {} ({} recordings)".format(drug_id + 1, weights))
-        
-    figManager = plt.get_current_fig_manager()
-    figManager.window.showMaximized()
-    plt.show()
 
 # ---- [Group-level analysis] ANOVA between drug groups for each feature ----
 
