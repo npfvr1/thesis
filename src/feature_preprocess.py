@@ -78,6 +78,8 @@ if substract_baseline:
 df = df.dropna()
 print("Number of data points: {}".format(len(df)))
 
+# ---- [Data preparation] Normalize features ----
+
 normalize = True
 
 if normalize:
@@ -89,10 +91,11 @@ if normalize:
 
 df.to_excel(os.path.join("data", "processed", "lmm_data.xlsx"), index=False)
 
+exit()
 
 # ---- Visualizations ----
 
-violin_plots = True
+violin_plots = False
 
 if violin_plots:
     i = 0
@@ -102,12 +105,10 @@ if violin_plots:
 
         plt.figure(figsize=(8, 6))
         sns.violinplot(data=df, x="drug", y=feature, hue="time", palette='pastel')
-        plt.xlabel("")
-        # plt.title("Distribution of the relative alpha band power (averaged)")
-        plt.ylabel("Averaged relative power (%)")
+        plt.xlabel("Drug ID")
+        plt.title(feature)
     plt.show()
 
-exit()
 old_vizs = False
 
 if old_vizs:
@@ -255,6 +256,8 @@ anova_per_feature = True
 
 if anova_per_feature:
 
+    all_recordings_df = deepcopy(df)
+
     # Correcting the unbalance across drug groups
     unbalanced_ids = [id for id in set(all_recordings_df['id'].values)
                         if (id not in all_recordings_df[all_recordings_df['drug'] == 1]['id'].values)
@@ -263,38 +266,40 @@ if anova_per_feature:
 
     balanced_df = all_recordings_df[~all_recordings_df['id'].isin(unbalanced_ids)]
 
-    for time_id in [1, 2]:
+    # Correcting the unbalance across recording times
+    unbalanced_ids = []
+    for drug_id in [1, 2, 3]:
+        temp_df = balanced_df[balanced_df['drug'] == drug_id]
+        unbalanced_ids += [id for id in set(temp_df['id'].values)
+                           if (id not in temp_df[temp_df['time'] == 1]['id'].values)
+                           or (id not in temp_df[temp_df['time'] == 2]['id'].values)]
 
-        df = balanced_df[balanced_df['time'] == time_id]
+    df = balanced_df[~balanced_df['id'].isin(unbalanced_ids)]
 
-        # Correcting the unbalance across recording times
-        unbalanced_ids = [id for id in set(balanced_df['id'].values)
-                            if (id not in balanced_df[balanced_df['time'] == time_id]['id'].values)]
+    for feature in df.columns:
 
-        df = balanced_df[~balanced_df['id'].isin(unbalanced_ids)]
+        if feature in ['id', 'drug', 'time']:
+            continue
 
-        for feature in df.columns:
+        temp_df = df.drop(columns=[c for c in df.columns if c not in ['id', 'drug', 'time', feature]])
+        temp_df.drop_duplicates(subset=['id', 'drug', 'time'], inplace=True)
+        
+        # Standardize feature
+        # scaler = StandardScaler()
+        # X = np.atleast_2d(temp_df[feature].values).T
+        # temp_df[feature] = scaler.fit_transform(X)
 
-            if feature in ['id', 'drug', 'time']:
-                continue
+        print("\nSize of the dataset used for ANOVA RM by drug group, for feature {}".format(feature))
+        print("Drug 1 : {}".format(temp_df[temp_df['drug'] == 1].shape[0]))
+        print("Drug 2 : {}".format(temp_df[temp_df['drug'] == 2].shape[0]))
+        print("Drug 3 : {}\n".format(temp_df[temp_df['drug'] == 3].shape[0]))
 
-            temp_df = df.drop(columns=[c for c in df.columns if c not in ['id', 'drug', feature]])
-            temp_df.drop_duplicates(subset=['id', 'drug'], inplace=True)
-            
-            # Standardize feature
-            scaler = StandardScaler()
-            X = np.atleast_2d(temp_df[feature].values).T
-            temp_df[feature] = scaler.fit_transform(X)
+        # print(temp_df)
 
-            print("\nSize of the dataset used for ANOVA RM by drug group, for feature {} and time T{}".format(feature, time_dict[time_id]))
-            print("Drug 1 : {}".format(temp_df[temp_df['drug'] == 1].shape[0]))
-            print("Drug 2 : {}".format(temp_df[temp_df['drug'] == 2].shape[0]))
-            print("Drug 3 : {}\n".format(temp_df[temp_df['drug'] == 3].shape[0]))
-
-            print(AnovaRM(data=temp_df,
-                        depvar=feature,
-                        subject='id',
-                        within=['drug']).fit())
+        print(AnovaRM(data=temp_df,
+                    depvar=feature,
+                    subject='id',
+                    within=['drug', 'time']).fit())
         
         # fig, axs = plt.subplots(1, 2, constrained_layout=True)
         # fig.suptitle(feature)
@@ -325,6 +330,8 @@ if anova_per_feature:
         #     ax.set_title("T{} - T0".format(time_dict[time]))
 
         # plt.show()
+
+exit()
 
 # ---- [Group-level analysis] ANOVA between drug groups with all features after PCA ----
 
@@ -385,7 +392,7 @@ if anova_all_features:
 
 # ---- [Group-level analysis] Mixed linear model between drug groups for each recording time and feature ----
 
-mlm = True
+mlm = False # See R script instead
 
 if mlm:
 
@@ -406,9 +413,9 @@ if mlm:
 
 # ---- [Recording-level analysis] Define then count significant variations for each feature ----
 
-variation_count = True
+variation_count = False
 per_feature = False
-all_features = True
+all_features = False
 
 if variation_count:
 

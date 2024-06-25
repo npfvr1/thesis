@@ -41,6 +41,7 @@ def compute_average_slope(epochs: mne.Epochs, show_plots : bool = False) -> floa
 
 paths = get_random_eeg_file_paths("snirf", 500)
 feature_list = []
+stats = {"bad_channels":[], "bad_epochs":[], "successes":0}
 
 for path in tqdm(paths):
 
@@ -78,6 +79,7 @@ for path in tqdm(paths):
     # ax.set(xlabel="Scalp Coupling Index", ylabel="Count", xlim=[0, 1])
     # plt.show()
     raw_od.info["bads"] = list(compress(raw_od.ch_names, sci < 0.5))
+    stats["bad_channels"].append(len(raw_od.info["bads"]))
     # raw_od.interpolate_bads() # Need montage for this
 
     # ---- Convert to Hbo concentration ----
@@ -88,7 +90,7 @@ for path in tqdm(paths):
 
     # ---- Filter ----
 
-    raw_haemo.filter(0.03, 1.0)
+    raw_haemo.filter(0.02, 0.7)
     # raw_haemo.plot(n_channels=len(raw_haemo.ch_names), duration=700, show_scrollbars=False)
     # raw_haemo.get_montage().plot()
 
@@ -152,8 +154,23 @@ for path in tqdm(paths):
 
     assert len(features) == 4
     feature_list.append(features)
+    stats["successes"] += 1
 
 # ---- Combine and save to file ----
 
 df = pd.DataFrame(feature_list, columns =['id', 'drug', 'time', 'fnirs_1'])
 df.to_csv(os.path.join("data", "processed", "fnirs_features.csv"), index = False)
+
+# ---- Display some stats ----
+
+logging.info("Number of successfully cleaned recordings: {} ({}%)".format(stats["successes"], (stats["successes"]/len(paths)*100)))
+
+number = len([e for e in stats["bad_channels"] if e > 0])
+average = np.mean(np.array(stats["bad_channels"]))
+logging.info("Number of recordings with bad channels: {}".format(number))
+logging.info("Average number of bad channels (for all recordings): {}".format(average))
+
+number = len([e for e in stats["bad_epochs"] if e > 0])
+average = np.mean(np.array(stats["bad_epochs"]))
+logging.info("Number of recordings with bad epochs: {}".format(number))
+logging.info("Average number of bad epochs (for all recordings): {}".format(average))

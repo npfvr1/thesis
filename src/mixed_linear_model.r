@@ -2,48 +2,71 @@ library(lme4)     # For GLMMs
 library(dplyr)    # For data manipulation
 library(ggplot2)  # For plotting
 library(readxl)   # For reading Excel files
-library(lmerTest)# to get p-value estimations that are not part of the standard lme4 packages
+library(lmerTest) # p-values (not part of the standard lme4 packages)
 
 
 # ---- DATA ----
 data <- read_excel("data/processed/lmm_data.xlsx")
-# data3$drug <- factor(data3$drug, levels = c("Placebo", "Methylphenidate", "Apomorphine"))
-# data3$behavior_change <- factor(data3$behavior_change, levels = c("no", "yes"))
-# data3$record_id <- as.factor(data3$record_id)
+data$drug <- as.factor(data$drug)
+data$time <- as.factor(data$time)
 
 
 # ---- LINEAR MIXED-EFFECTS MODELS ----
 cat("\n\n---------------- DELTA ----------------\n\n")
-model_delta <- lmer(delta ~ drug + time + (1 | id), data = data)
-print(summary(model_delta))
+# Effect of the interaction
+model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
+# print(summary(model_delta))
+model_delta_reduced <- lmer(delta ~ drug + time + (1 | id), data = data)                      
+anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+print(anova_result)
+
+# Effect of time
+model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
+model_delta_reduced <- lmer(delta ~ drug + (1 | id), data = data)                      
+anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+print(anova_result)
+
+# Effect of drug TODO : do this for each feature and report results
+model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
+model_delta_reduced <- lmer(delta ~ time + (1 | id), data = data)                      
+anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+print(anova_result)
+
+
+
+
+stop()
+
+
 
 cat("\n\n---------------- THETA ----------------\n\n")
-model_theta <- lmer(theta ~ drug + time + (1 | id), data = data)
+model_theta <- lmer(theta ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_theta))
 
 cat("\n\n---------------- ALPHA ----------------\n\n")
-model_alpha <- lmer(alpha ~ drug + time + (1 | id), data = data)
+model_alpha <- lmer(alpha ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_alpha))
 
 cat("\n\n---------------- RATIO ----------------\n\n")
-model_ratio <- lmer(ratio ~ drug + time + (1 | id), data = data)
+model_ratio <- lmer(ratio ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_ratio))
 
 cat("\n\n---------------- PE ----------------\n\n")
-model_pe <- lmer(pe ~ drug + time + (1 | id), data = data)
+model_pe <- lmer(pe ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_pe))
 
 cat("\n\n---------------- SE ----------------\n\n")
-model_se <- lmer(se ~ drug + time + (1 | id), data = data)
+model_se <- lmer(se ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_se))
 
 cat("\n\n---------------- FNIRS ----------------\n\n")
-model_fnirs <- lmer(fnirs_1 ~ drug + time + (1 | id), data = data)
+model_fnirs <- lmer(fnirs_1 ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_fnirs))
 
 cat("\n\n---------------- PUPILLOMETRY ----------------\n\n")
-model_pupillometry <- lmer(pupillometry_score ~ drug + time + (1 | id), data = data)
+model_pupillometry <- lmer(pupillometry_score ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_pupillometry))
+
 
 stop()
 
