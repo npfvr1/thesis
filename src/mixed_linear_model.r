@@ -6,135 +6,184 @@ library(lmerTest) # p-values (not part of the standard lme4 packages)
 
 
 # ---- DATA ----
+
 data <- read_excel("data/processed/lmm_data.xlsx")
 data$drug <- as.factor(data$drug)
 data$time <- as.factor(data$time)
 
 
 # ---- LINEAR MIXED-EFFECTS MODELS ----
+
 cat("\n\n---------------- DELTA ----------------\n\n")
-# Effect of the interaction
+
+cat("\n\n- Effect of the interaction\n\n")
 model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
-# print(summary(model_delta))
-model_delta_reduced <- lmer(delta ~ drug + time + (1 | id), data = data)                      
-anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
-print(anova_result)
+print(summary(model_delta))
 
-# Effect of time
-model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
-model_delta_reduced <- lmer(delta ~ drug + (1 | id), data = data)                      
-anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
-print(anova_result)
+# model_delta_reduced <- lmer(delta ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+# print(anova_result)
 
-# Effect of drug TODO : do this for each feature and report results
-model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
-model_delta_reduced <- lmer(delta ~ time + (1 | id), data = data)                      
-anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
-print(anova_result)
+# cat("\n\n- Effect of time\n\n")
+# model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
+# model_delta_reduced <- lmer(delta ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+# print(anova_result)
 
-
-
-
-stop()
-
+# cat("\n\n- Effect of drug\n\n")
+# model_delta <- lmer(delta ~ drug + time + drug:time + (1 | id), data = data)
+# model_delta_reduced <- lmer(delta ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_delta_reduced, model_delta, test = "LRT")
+# print(anova_result)
 
 
 cat("\n\n---------------- THETA ----------------\n\n")
+
+cat("\n\n- Effect of the interaction\n\n")
 model_theta <- lmer(theta ~ drug + time + drug:time + (1 | id), data = data)
 print(summary(model_theta))
 
-cat("\n\n---------------- ALPHA ----------------\n\n")
-model_alpha <- lmer(alpha ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_alpha))
+# model_theta_reduced <- lmer(theta ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_theta_reduced, model_theta, test = "LRT")
+# print(anova_result)
 
-cat("\n\n---------------- RATIO ----------------\n\n")
-model_ratio <- lmer(ratio ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_ratio))
+# cat("\n\n- Effect of time\n\n")
+# model_theta <- lmer(theta ~ drug + time + drug:time + (1 | id), data = data)
+# model_theta_reduced <- lmer(theta ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_theta_reduced, model_theta, test = "LRT")
+# print(anova_result)
 
-cat("\n\n---------------- PE ----------------\n\n")
-model_pe <- lmer(pe ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_pe))
+# cat("\n\n- Effect of drug\n\n")
+# model_theta <- lmer(theta ~ drug + time + drug:time + (1 | id), data = data)
+# model_theta_reduced <- lmer(theta ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_theta_reduced, model_theta, test = "LRT")
+# print(anova_result)
 
-cat("\n\n---------------- SE ----------------\n\n")
-model_se <- lmer(se ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_se))
+
+# cat("\n\n---------------- ALPHA ----------------\n\n")
+
+# cat("\n\n- Effect of the interaction\n\n")
+# model_alpha <- lmer(alpha ~ drug + time + drug:time + (1 | id), data = data)
+# model_alpha_reduced <- lmer(alpha ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_alpha_reduced, model_alpha, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of time\n\n")
+# model_alpha <- lmer(alpha ~ drug + time + drug:time + (1 | id), data = data)
+# model_alpha_reduced <- lmer(alpha ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_alpha_reduced, model_alpha, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of drug\n\n")
+# model_alpha <- lmer(alpha ~ drug + time + drug:time + (1 | id), data = data)
+# model_alpha_reduced <- lmer(alpha ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_alpha_reduced, model_alpha, test = "LRT")
+# print(anova_result)
+
+
+# cat("\n\n---------------- RATIO ----------------\n\n")
+
+# cat("\n\n- Effect of the interaction\n\n")
+# model_ratio <- lmer(ratio ~ drug + time + drug:time + (1 | id), data = data)
+# model_ratio_reduced <- lmer(ratio ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_ratio_reduced, model_ratio, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of time\n\n")
+# model_ratio <- lmer(ratio ~ drug + time + drug:time + (1 | id), data = data)
+# model_ratio_reduced <- lmer(ratio ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_ratio_reduced, model_ratio, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of drug\n\n")
+# model_ratio <- lmer(ratio ~ drug + time + drug:time + (1 | id), data = data)
+# model_ratio_reduced <- lmer(ratio ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_ratio_reduced, model_ratio, test = "LRT")
+# print(anova_result)
+
+
+# cat("\n\n---------------- PE ----------------\n\n")
+
+# cat("\n\n- Effect of the interaction\n\n")
+# model_pe <- lmer(pe ~ drug + time + drug:time + (1 | id), data = data)
+# model_pe_reduced <- lmer(pe ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_pe_reduced, model_pe, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of time\n\n")
+# model_pe <- lmer(pe ~ drug + time + drug:time + (1 | id), data = data)
+# model_pe_reduced <- lmer(pe ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_pe_reduced, model_pe, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of drug\n\n")
+# model_pe <- lmer(pe ~ drug + time + drug:time + (1 | id), data = data)
+# model_pe_reduced <- lmer(pe ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_pe_reduced, model_pe, test = "LRT")
+# print(anova_result)
+
+
+# cat("\n\n---------------- SE ----------------\n\n")
+
+# cat("\n\n- Effect of the interaction\n\n")
+# model_se <- lmer(se ~ drug + time + drug:time + (1 | id), data = data)
+# model_se_reduced <- lmer(se ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_se_reduced, model_se, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of time\n\n")
+# model_se <- lmer(se ~ drug + time + drug:time + (1 | id), data = data)
+# model_se_reduced <- lmer(se ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_se_reduced, model_se, test = "LRT")
+# print(anova_result)
+
+# cat("\n\n- Effect of drug\n\n")
+# model_se <- lmer(se ~ drug + time + drug:time + (1 | id), data = data)
+# model_se_reduced <- lmer(se ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_se_reduced, model_se, test = "LRT")
+# print(anova_result)
+
 
 cat("\n\n---------------- FNIRS ----------------\n\n")
-model_fnirs <- lmer(fnirs_1 ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_fnirs))
 
-cat("\n\n---------------- PUPILLOMETRY ----------------\n\n")
-model_pupillometry <- lmer(pupillometry_score ~ drug + time + drug:time + (1 | id), data = data)
-print(summary(model_pupillometry))
+cat("\n\n- Effect of the interaction\n\n")
+model_fnirs_1 <- lmer(fnirs_1 ~ drug + time + drug:time + (1 | id), data = data)
+print(summary(model_fnirs_1))
 
+# model_fnirs_1_reduced <- lmer(fnirs_1 ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_fnirs_1_reduced, model_fnirs_1, test = "LRT")
+# print(anova_result)
 
-stop()
+# cat("\n\n- Effect of time\n\n")
+# model_fnirs_1 <- lmer(fnirs_1 ~ drug + time + drug:time + (1 | id), data = data)
+# model_fnirs_1_reduced <- lmer(fnirs_1 ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_fnirs_1_reduced, model_fnirs_1, test = "LRT")
+# print(anova_result)
 
-
-# Tobias: Fit the model without the effect of drug for comparison
-model_behavior_reduced <- glmer(behavior_change ~ 1 + (1 | record_id),
-                                data = data3,
-                                family = binomial(link = "logit"), nAGQ = 100)
-
-# Tobias: Compare the models as in a main effect ANOVA. Not significant
-anova_result <- anova(model_behavior_reduced, model_behavior, test = "LRT")
-print(anova_result)
-
-
-
-# Calculate odds ratios
-#odds_ratios <- exp(coef(model_behavior))
-#Tobias: updated for glmer
-odds_ratios <- exp(fixef(model_behavior))
+# cat("\n\n- Effect of drug\n\n")
+# model_fnirs_1 <- lmer(fnirs_1 ~ drug + time + drug:time + (1 | id), data = data)
+# model_fnirs_1_reduced <- lmer(fnirs_1 ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_fnirs_1_reduced, model_fnirs_1, test = "LRT")
+# print(anova_result)
 
 
-# Print the odds ratios
-print(odds_ratios)
+# cat("\n\n---------------- PUPILLOMETRY ----------------\n\n")
 
-# Calculate confidence intervals for coefficients
-#conf_int <- confint(model_behavior)
-#Tobias: updated for glmer
-conf_int <- confint(model_behavior, parm = "beta_", level = 0.95)
+# cat("\n\n- Effect of the interaction\n\n")
+# model_pupillometry_score <- lmer(pupillometry_score ~ drug + time + drug:time + (1 | id), data = data)
+# model_pupillometry_score_reduced <- lmer(pupillometry_score ~ drug + time + (1 | id), data = data)                      
+# anova_result <- anova(model_pupillometry_score_reduced, model_pupillometry_score, test = "LRT")
+# print(anova_result)
 
-# Exponentiate to get confidence intervals for odds ratios
-#odds_ratio_ci <- exp(conf_int)
-#Tobias: updated for glmer
-odds_ratio_ci <- exp(conf_int)
+# cat("\n\n- Effect of time\n\n")
+# model_pupillometry_score <- lmer(pupillometry_score ~ drug + time + drug:time + (1 | id), data = data)
+# model_pupillometry_score_reduced <- lmer(pupillometry_score ~ drug + (1 | id), data = data)                      
+# anova_result <- anova(model_pupillometry_score_reduced, model_pupillometry_score, test = "LRT")
+# print(anova_result)
 
-# Print the confidence intervals for the odds ratios
-print(odds_ratio_ci)
+# cat("\n\n- Effect of drug\n\n")
+# model_pupillometry_score <- lmer(pupillometry_score ~ drug + time + drug:time + (1 | id), data = data)
+# model_pupillometry_score_reduced <- lmer(pupillometry_score ~ time + (1 | id), data = data)                      
+# anova_result <- anova(model_pupillometry_score_reduced, model_pupillometry_score, test = "LRT")
+# print(anova_result)
 
-# Combine odds ratios and their confidence intervals into a data frame
-results <- data.frame(
-  Odds_Ratios = odds_ratios,
-  CI_Lower = odds_ratio_ci[, 1],
-  CI_Upper = odds_ratio_ci[, 2]
-)
-
-# Print the results
-print(results)
-
-# Creating a data frame for plotting
-drug_effects <- data.frame(
-  Drug = c("Placebo", "Methylphenidate", "Apomorphine"),
-  Odds_Ratios = c(0.02777778, 7.875, 4.5),
-  CI_Lower = c(0.001563616, 1.302339938, 0.625676192),
-  CI_Upper = c(0.1281871, 151.4020729, 90.4933902)
-)
-
-# Load necessary library
-library(ggplot2)
-library(scales)
-
-# Create the plot
-odds_ratio_plot <- ggplot(drug_effects, aes(x = Drug, y = Odds_Ratios, ymin = CI_Lower, ymax = CI_Upper)) +
-  geom_point(size = 4) +
-  geom_errorbar(width = 0.2, size = 1) +
-  scale_y_log10(breaks = c(0.1, 1, 10, 100), labels = scales::trans_format("log10", math_format(10^.x))) +
-  labs(title = "Odds Ratios and 95% Confidence Intervals for Drug Effects on Behavior Change",
-       x = "Drug Treatment",
-       y = "Odds Ratio (log scale)") +
-  theme_minimal()
-
-# Print the plot
-print(odds_ratio_plot)

@@ -29,7 +29,7 @@ def quantile_bucket(data, buckets):
 
 # ---- Load ----
 
-df_eeg = pd.read_csv(os.path.join("data", "processed", "eeg_features copy.csv"))
+df_eeg = pd.read_csv(os.path.join("data", "processed", "eeg_features copy relative.csv"))
 df_fnirs = pd.read_csv(os.path.join("data", "processed", "fnirs_features copy.csv"))
 df_pupillometry = pd.read_csv(os.path.join("data", "processed", "pupillometry_features.csv"))
 
@@ -89,25 +89,32 @@ if normalize:
             continue
         df[feature] = ss.fit_transform(df[feature].values.reshape(-1, 1))
 
-df.to_excel(os.path.join("data", "processed", "lmm_data.xlsx"), index=False)
-
-exit()
+df.to_csv(os.path.join("data", "processed", "lmm_data.csv"), index=False)
+# df.to_excel(os.path.join("data", "processed", "lmm_data.xlsx"), index=False)
 
 # ---- Visualizations ----
 
 violin_plots = False
 
 if violin_plots:
-    i = 0
+    ylabels = {'delta': 'Percentage of the total signal\'s power spectral density',
+               'theta': 'Percentage of the total signal\'s power spectral density',
+               'alpha': 'Percentage of the total signal\'s power spectral density',
+               'ratio': 'Ratio',
+               'pe': 'Permutation entropy',
+               'se': 'Spectral entropy',
+               'fnirs_1': 'Average slope of the hemoglobin signal',
+               'pupillometry_score': 'Number of significant pupil dilations during the mental arithmetic tasks'}
     for feature in df.columns:
         if feature in ['id', 'drug', 'time']:
             continue
 
         plt.figure(figsize=(8, 6))
         sns.violinplot(data=df, x="drug", y=feature, hue="time", palette='pastel')
-        plt.xlabel("Drug ID")
-        plt.title(feature)
-    plt.show()
+        plt.title("Distribution of the values for the feature: {}".format(feature))
+        plt.ylabel(ylabels[feature])
+        plt.xlabel("Drug group")
+        plt.savefig(r"H:\Dokumenter\Violin plots\Change since T0\\" + feature + ".png")
 
 old_vizs = False
 
@@ -249,6 +256,32 @@ if old_vizs:
         figManager = plt.get_current_fig_manager()
         figManager.window.showMaximized()
         plt.show()
+
+pca_viz = False
+
+if pca_viz:
+        
+    plt.cla()
+    pca = decomposition.PCA(n_components = 2, random_state = 1)
+    data = np.column_stack([df[feature].values for feature in df.columns if feature not in ['id', 'drug', 'time']])
+    X = pca.fit_transform(data)
+    x = X[:, 0]
+    y = X[:, 1]
+    labels = df['drug'].values
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot()
+    ax.scatter(x, y, marker="o", c=labels, cmap=ListedColormap(['red', 'blue', 'green']))
+    plt.title("Data distribution ({}D reduced to {}D, {} points)".format(len(df.columns.values[3:]), 2, len(x)))
+    plt.xlabel("PC 1\n\nFeatures are {}\n\nPC 1 is {}\n\nPC 2 is {}".format(df.columns.values[3:],
+                                                                            [float(np.round(x, 1)) for x in pca.components_[0]],
+                                                                            [float(np.round(x, 1)) for x in pca.components_[1]]))
+    plt.ylabel("PC 2")
+    plt.locator_params(nbins=3)
+    plt.subplots_adjust(bottom=0.25)
+    plt.grid()
+    plt.show()
+
+exit()
 
 # ---- [Group-level analysis] ANOVA between drug groups for each feature ----
 
